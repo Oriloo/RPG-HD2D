@@ -4,6 +4,3 @@
 #include "Modules/ModuleManager.h"
 
 IMPLEMENT_PRIMARY_GAME_MODULE( FDefaultGameModuleImpl, RPG_HD2D, "RPG_HD2D" );
-
-DEFINE_LOG_CATEGORY(LogRPG_HD2D)
- 

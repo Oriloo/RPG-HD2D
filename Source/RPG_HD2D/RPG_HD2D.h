@@ -4,4 +4,3 @@
 
 #include "CoreMinimal.h"
 
-DECLARE_LOG_CATEGORY_EXTERN(LogRPG_HD2D, Log, All);
