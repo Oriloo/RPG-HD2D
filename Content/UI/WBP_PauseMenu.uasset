@@ -1,0 +1,75 @@
+This is a placeholder for the UMG Widget Blueprint file. 
+
+In Unreal Engine Editor, you need to:
+
+1. Create a new folder: Content/UI/
+2. Right-click → User Interface → Widget Blueprint
+3. Name it: WBP_PauseMenu
+
+Widget Structure:
+=================
+
+Canvas Panel (Root)
+├── Image (BackgroundBlur)
+│   ├── Anchor: Fill Screen
+│   ├── Tint: Black (R:0, G:0, B:0, A:0.7)
+│   └── Brush: White Square
+│
+└── Vertical Box (MenuContainer) 
+    ├── Anchor: Center
+    ├── Alignment: 0.5, 0.5
+    ├── Size: Auto
+    │
+    ├── Text Block (Title)
+    │   ├── Text: "Menu Pause"
+    │   ├── Font Size: 48
+    │   ├── Color: White
+    │   └── Justification: Center
+    │
+    ├── Spacer (Height: 30)
+    │
+    ├── Button (ResumeButton)
+    │   ├── Size: 250x50
+    │   └── Text Block (ResumeText): "Reprendre"
+    │
+    ├── Spacer (Height: 10)
+    │
+    ├── Button (OptionsButton)
+    │   ├── Size: 250x50
+    │   └── Text Block (OptionsText): "Options"
+    │
+    ├── Spacer (Height: 10)
+    │
+    ├── Button (RestartButton)
+    │   ├── Size: 250x50
+    │   └── Text Block (RestartText): "Recommencer"
+    │
+    ├── Spacer (Height: 10)
+    │
+    └── Button (QuitButton)
+        ├── Size: 250x50
+        └── Text Block (QuitText): "Quitter"
+
+Button Events (In the Graph Editor):
+===================================
+
+For ResumeButton OnClicked:
+- Get Player Controller → Cast to GameplayPlayerController → ResumeGame
+
+For RestartButton OnClicked:
+- Get Player Controller → Cast to GameplayPlayerController → RestartLevel
+
+For QuitButton OnClicked:
+- Get Player Controller → Cast to GameplayPlayerController → ReturnToMainMenu
+
+For OptionsButton OnClicked:
+- (To be implemented later - placeholder for options menu)
+
+Blueprint Variables:
+===================
+None needed for basic functionality.
+
+Animations (Optional):
+=====================
+- Create "FadeIn" animation for smooth appearance
+- Animate the MenuContainer with a scale from 0.8 to 1.0 over 0.2 seconds

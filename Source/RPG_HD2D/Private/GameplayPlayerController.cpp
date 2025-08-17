@@ -6,6 +6,7 @@ AGameplayPlayerController::AGameplayPlayerController()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	bIsInMainMenu = true;
+	bIsGamePaused = false;
 }
 
 void AGameplayPlayerController::BeginPlay()
@@ -14,6 +15,14 @@ void AGameplayPlayerController::BeginPlay()
 
 	// Start in main menu mode
 	ShowMainMenu();
+}
+
+void AGameplayPlayerController::SetupInputComponent()
+{
+	Super::SetupInputComponent();
+
+	// Bind pause action
+	InputComponent->BindAction("Pause", IE_Pressed, this, &AGameplayPlayerController::TogglePause);
 }
 
 void AGameplayPlayerController::ShowMainMenu()
@@ -60,7 +69,7 @@ void AGameplayPlayerController::StartNewGame()
 	// Remove the widget completely from the viewport
 	if (MainMenuWidget)
 	{
-		MainMenuWidget->RemoveFromViewport();
+		MainMenuWidget->RemoveFromParent();
 		MainMenuWidget = nullptr;
 	}
 	
@@ -72,8 +81,87 @@ void AGameplayPlayerController::StartNewGame()
 	// The game is now ready to play in the same level
 }
 
+void AGameplayPlayerController::ShowPauseMenu()
+{
+	if (!bIsInMainMenu && PauseMenuWidgetClass)
+	{
+		if (!PauseMenuWidget)
+		{
+			PauseMenuWidget = CreateWidget<UUserWidget>(this, PauseMenuWidgetClass);
+		}
+		
+		if (PauseMenuWidget)
+		{
+			PauseMenuWidget->AddToViewport(100); // High Z-order to appear on top
+			
+			// Set input mode to UI only
+			FInputModeUIOnly InputMode;
+			InputMode.SetWidgetToFocus(PauseMenuWidget->TakeWidget());
+			SetInputMode(InputMode);
+			bShowMouseCursor = true;
+			
+			// Pause the game
+			SetPause(true);
+			bIsGamePaused = true;
+		}
+	}
+}
+
+void AGameplayPlayerController::HidePauseMenu()
+{
+	if (PauseMenuWidget)
+	{
+		PauseMenuWidget->RemoveFromParent();
+		
+		// Return to game input mode
+		FInputModeGameOnly InputMode;
+		SetInputMode(InputMode);
+		bShowMouseCursor = false;
+		
+		// Unpause the game
+		SetPause(false);
+		bIsGamePaused = false;
+	}
+}
+
+void AGameplayPlayerController::TogglePause()
+{
+	if (bIsInMainMenu)
+		return;
+		
+	if (bIsGamePaused)
+	{
+		HidePauseMenu();
+	}
+	else
+	{
+		ShowPauseMenu();
+	}
+}
+
+void AGameplayPlayerController::ResumeGame()
+{
+	HidePauseMenu();
+}
+
+void AGameplayPlayerController::RestartCurrentLevel()
+{
+	HidePauseMenu();
+	
+	// Restart the current level
+	UWorld* World = GetWorld();
+	if (World)
+	{
+		FString CurrentLevelName = World->GetMapName();
+		CurrentLevelName = CurrentLevelName.Replace(TEXT("UEDPIE_0_"), TEXT("")); // Remove PIE prefix if in editor
+		GetWorld()->ServerTravel(CurrentLevelName);
+	}
+}
+
 void AGameplayPlayerController::ReturnToMainMenu()
 {
+	HidePauseMenu();
+	
 	// Show the main menu again
 	ShowMainMenu();
 }
