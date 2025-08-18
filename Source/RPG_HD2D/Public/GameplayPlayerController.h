@@ -3,6 +3,9 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "Blueprint/UserWidget.h"
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
+#include "InputActionValue.h"
 #include "GameplayPlayerController.generated.h"
 
 UCLASS()
@@ -34,6 +37,16 @@ protected:
 
 	UPROPERTY(BlueprintReadWrite, Category = "Game State")
 	bool bIsGamePaused;
+
+	// Enhanced Input Actions
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	class UInputAction* PauseAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	class UInputMappingContext* InputMappingContext;
+
+	// Input Functions
+	void HandlePauseInput(const FInputActionValue& Value);
 
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void ShowMainMenu();

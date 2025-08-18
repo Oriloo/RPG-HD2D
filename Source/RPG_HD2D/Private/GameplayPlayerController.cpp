@@ -1,6 +1,8 @@
 #include "GameplayPlayerController.h"
 #include "Blueprint/UserWidget.h"
 #include "Engine/Engine.h"
+#include "InputAction.h"
+#include "InputMappingContext.h"
 
 AGameplayPlayerController::AGameplayPlayerController()
 {
@@ -13,6 +15,15 @@ void AGameplayPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// Setup Enhanced Input Mapping Context
+	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
+	{
+		if (InputMappingContext)
+		{
+			Subsystem->AddMappingContext(InputMappingContext, 0);
+		}
+	}
+
 	// Start in main menu mode
 	ShowMainMenu();
 }
@@ -21,8 +32,23 @@ void AGameplayPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 
-	// Bind pause action
-	InputComponent->BindAction("Pause", IE_Pressed, this, &AGameplayPlayerController::TogglePause);
+	// Cast to Enhanced Input Component
+	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(InputComponent))
+	{
+		// Bind pause action
+		if (PauseAction)
+		{
+			EnhancedInputComponent->BindAction(PauseAction, ETriggerEvent::Triggered, this, &AGameplayPlayerController::HandlePauseInput);
+		}
+	}
+}
+
+void AGameplayPlayerController::HandlePauseInput(const FInputActionValue& Value)
+{
+	if (Value.Get<bool>())
+	{
+		TogglePause();
+	}
 }
 
 void AGameplayPlayerController::ShowMainMenu()
