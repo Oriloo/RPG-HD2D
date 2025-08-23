@@ -3334,6 +3334,26 @@
 			"Type": "RequiredResource"
 		},
 		{
+			"Path": "$(EngineDir)/Plugins/Marketplace/PaperZD8b0e064aa89dV19/Binaries/Win64/UnrealEditor-PaperZD.dll",
+			"Type": "DynamicLibrary"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Marketplace/PaperZD8b0e064aa89dV19/Binaries/Win64/UnrealEditor-PaperZD.pdb",
+			"Type": "SymbolFile"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Marketplace/PaperZD8b0e064aa89dV19/Binaries/Win64/UnrealEditor-PaperZDEditor.dll",
+			"Type": "DynamicLibrary"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Marketplace/PaperZD8b0e064aa89dV19/Binaries/Win64/UnrealEditor-PaperZDEditor.pdb",
+			"Type": "SymbolFile"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Marketplace/PaperZD8b0e064aa89dV19/Binaries/Win64/UnrealEditor.modules",
+			"Type": "RequiredResource"
+		},
+		{
 			"Path": "$(EngineDir)/Plugins/MassInsights/Binaries/Win64/UnrealEditor-MassInsightsAnalysis.dll",
 			"Type": "DynamicLibrary"
 		},
@@ -28452,6 +28472,10 @@
 			"Type": "UFS"
 		},
 		{
+			"Path": "$(EngineDir)/Plugins/Marketplace/PaperZD8b0e064aa89dV19/PaperZD.uplugin",
+			"Type": "UFS"
+		},
+		{
 			"Path": "$(EngineDir)/Plugins/MassInsights/MassInsights.uplugin",
 			"Type": "UFS"
 		},
@@ -28907,6 +28931,7 @@
 		"OnlineSubsystemUtils",
 		"OodleNetwork",
 		"Paper2D",
+		"PaperZD",
 		"PerforceSourceControl",
 		"PixWinPlugin",
 		"PlanarCut",

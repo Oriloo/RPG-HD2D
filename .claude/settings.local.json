@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(del \"C:\\Users\\banck\\Documents\\Unreal Projects\\RPG_HD2D\\Source\\RPG_HD2D\\Public\\DialogueManager.h\")",
+      "Bash(rm:*)",
+      "Bash(del \"C:\\Users\\banck\\Documents\\Unreal Projects\\RPG_HD2D\\Intermediate\\Build\\Win64\\UnrealEditor\\Inc\\RPG_HD2D\\UHT\\GameplayPlayerController.generated.h\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
