@@ -264,39 +264,74 @@ void UCombatPolicyRunner::PrintOutputs(const TArray<float>& Logits, const TArray
 
 void UCombatPolicyRunner::executeAction()
 {
-	// Obtenir le game state
-	const ATurnGameState* gamestate = Cast<ATurnGameState>(GetWorld()->GetGameState());
-	if (!gamestate)
+	//cree le json 
+	ATurnGameState* GameState = Cast<ATurnGameState>(GetOwner()->GetWorld()->GetGameState());
+	if (!GameState)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to get game state"));
+		UE_LOG(LogTemp, Error, TEXT("GameState is not of type ATurnGameState"));
 		return;
 	}
+	UCombatJsonExporter* Exporter = NewObject<UCombatJsonExporter>();
+	TSharedPtr<FJsonObject> CombatJson = Exporter->MakeCombatStateToJson(GameState);
 
-	// Creer l'objet JSON a partir du game state
-	TSharedPtr<FJsonObject> JsonObject = UCombatJsonExporter::MakeCombatStateToJson(gamestate);
-	if (!JsonObject.IsValid())
-	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to create JSON object from game state"));
-		return;
-	}
+    // Chemin vers l'exécutable Python et le script
+    FString PythonExecutable = TEXT("python"); // ou chemin complet vers python.exe
+    FString ScriptPath = FPaths::ProjectDir() + TEXT("Python/main.py");
+    
+    // Vérifier si le fichier existe
+    if (!FPaths::FileExists(ScriptPath))
+    {
+        UE_LOG(LogTemp, Error, TEXT("Script Python non trouvé: %s"), *ScriptPath);
+        return;
+    }
+    
+    // Paramètres pour le script Python
+    FString Parameters = FString::Printf(TEXT("\"%s\""), *ScriptPath);
+    
+    // Variables pour le processus
+    void* ReadPipe = nullptr;
+    void* WritePipe = nullptr;
+    
+    // Créer le processus Python
+    FProcHandle ProcessHandle = FPlatformProcess::CreateProc(
+        *PythonExecutable,
+        *Parameters,
+        false,      // bLaunchDetached
+        true,       // bLaunchHidden
+        true,       // bLaunchReallyHidden
+        nullptr,    // OutProcessID
+        0,          // PriorityModifier
+        nullptr,    // OptionalWorkingDirectory
+        WritePipe,  // PipeWriteChild
+        ReadPipe    // PipeReadChild
+    );
+    
+    if (ProcessHandle.IsValid())
+    {
 
-	// Convertir l'objet JSON en string
-	FString JsonString;
-	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
-	if (!FJsonSerializer::Serialize(JsonObject.ToSharedRef(), Writer))
-	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to serialize JSON object to string"));
-		return;
-	}
+		UE_LOG(LogTemp, Log, TEXT("Script Python lancé avec succès: %s"), *ScriptPath);
+        
+        // Attendre la fin du processus (optionnel)
+        FPlatformProcess::WaitForProc(ProcessHandle);
+        
+        // Lire la sortie si nécessaire
+        if (ReadPipe)
+        {
+            FString Output = FPlatformProcess::ReadPipe(ReadPipe);
+            if (!Output.IsEmpty())
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Sortie Python: %s"), *Output);
+            }
+        }
+        
+        // Nettoyer
+        FPlatformProcess::ClosePipe(ReadPipe, WritePipe);
+        FPlatformProcess::CloseProc(ProcessHandle);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("Échec du lancement du script Python"));
+    }
 
-	// Encoder les features a partir du JSON string
-	TArray<float> Features = EncodeJsonToFeatures92(JsonString);
-	if (Features.Num() == 0)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to encode features from JSON"));
-		return;
-	}
 
-	// Executer le modele (version mock)
-	RunModelAndPrint(Features, TEXT("MockAI"));
 }

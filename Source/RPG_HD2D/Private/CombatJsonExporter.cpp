@@ -127,6 +127,9 @@ TSharedPtr<FJsonObject> UCombatJsonExporter::CombatantStatsToJson(const ATurnGam
 				StatsJson->SetNumberField(TEXT("level"), 0);
 				StatsJson->SetNumberField(TEXT("hpMax"), StatsComp->MaxHealthPoints);
 				StatsJson->SetNumberField(TEXT("hp"), StatsComp->HealthPoints);
+				StatsJson->SetNumberField(TEXT("speed"), StatsComp->Speed);
+				StatsJson->SetNumberField(TEXT("apMax"), StatsComp->MaxActionPoints);
+				StatsJson->SetNumberField(TEXT("ap"), StatsComp->ActionPoints);
 
 				TSharedPtr<FJsonObject> SubStats = MakeShareable(new FJsonObject);
 				SubStats->SetNumberField(TEXT("phy_atk"), StatsComp->PhysicalAttack);
@@ -143,6 +146,9 @@ TSharedPtr<FJsonObject> UCombatJsonExporter::CombatantStatsToJson(const ATurnGam
 				StatsJson->SetNumberField(TEXT("level"), 0);
 				StatsJson->SetNumberField(TEXT("hpMax"), 0);
 				StatsJson->SetNumberField(TEXT("hp"), 0);
+				StatsJson->SetNumberField(TEXT("speed"), 0);
+				StatsJson->SetNumberField(TEXT("apMax"), 0);
+				StatsJson->SetNumberField(TEXT("ap"), 0);
 
 				TSharedPtr<FJsonObject> SubStats = MakeShareable(new FJsonObject);
 				SubStats->SetNumberField(TEXT("phy_atk"), 0);
@@ -157,6 +163,7 @@ TSharedPtr<FJsonObject> UCombatJsonExporter::CombatantStatsToJson(const ATurnGam
 		};
 
 	FillStats(AiStatsComp, AiStatsJson);
+
 	FillStats(PlayerStatsComp, PlyStatsJson);
 
 	TSharedPtr<FJsonObject> CombatStatsJson = MakeShareable(new FJsonObject);
@@ -288,7 +295,7 @@ TSharedPtr<FJsonObject> UCombatJsonExporter::MakeCombatStateToJson(const ATurnGa
 	FJsonSerializer::Serialize(ResultJson.ToSharedRef(), Writer);
 
 	// Create the file path for features.json in the project's Saved directory
-	FString FilePath = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("features.json"));
+	FString FilePath = FPaths::Combine(FPaths::ProjectDir() + TEXT("Python/features.json"));
 	
 	// Write the JSON string to file
 	if (FFileHelper::SaveStringToFile(OutputString, *FilePath, FFileHelper::EEncodingOptions::ForceUTF8))
