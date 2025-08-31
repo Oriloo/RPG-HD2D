@@ -1,7 +1,9 @@
-
 #include "CombatJsonExporter.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "HAL/PlatformFilemanager.h"
 #include "UActionComponent.h"
 #include "UStatsComponent.h"
 
@@ -279,6 +281,24 @@ TSharedPtr<FJsonObject> UCombatJsonExporter::MakeCombatStateToJson(const ATurnGa
 	ResultJson->SetObjectField(TEXT("combat_state"), CombatStateJson->GetObjectField(TEXT("combat_state")));
 	ResultJson->SetArrayField(TEXT("ai_available_actions"), AiAvailableJson->HasField(TEXT("ai_available_actions")) ? AiAvailableJson->GetArrayField(TEXT("ai_available_actions")) : TArray<TSharedPtr<FJsonValue>>());
 	ResultJson->SetArrayField(TEXT("ai_actions_history"), AiHistoryJson->HasField(TEXT("ai_action_history")) ? AiHistoryJson->GetArrayField(TEXT("ai_action_history")) : TArray<TSharedPtr<FJsonValue>>());
+
+	// Convert JSON object to string and write to file
+	FString OutputString;
+	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+	FJsonSerializer::Serialize(ResultJson.ToSharedRef(), Writer);
+
+	// Create the file path for features.json in the project's Saved directory
+	FString FilePath = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("features.json"));
+	
+	// Write the JSON string to file
+	if (FFileHelper::SaveStringToFile(OutputString, *FilePath, FFileHelper::EEncodingOptions::ForceUTF8))
+	{
+		UE_LOG(LogTemp, Log, TEXT("Successfully wrote JSON to features.json at: %s"), *FilePath);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to write JSON to features.json at: %s"), *FilePath);
+	}
 
 	return ResultJson;
 }

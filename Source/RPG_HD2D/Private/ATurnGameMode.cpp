@@ -103,9 +103,11 @@ void ATurnGameMode::StartNextTurn()
         if (StatusEffect)
         {  
             TurnState->AiActiveEffect = StatusEffect;
-			/*TSharedPtr<FJsonObject> jsonIA = UCombatJsonExporter::MakeCombatStateToJson(TurnState);*/
+            
 
         }
+
+        
     }
     else
     {
