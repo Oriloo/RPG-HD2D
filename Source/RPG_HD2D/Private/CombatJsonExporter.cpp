@@ -117,58 +117,65 @@ TSharedPtr<FJsonObject> UCombatJsonExporter::CombatantStatsToJson(const ATurnGam
 			AiStatsComp = Cast<UUStatsComponent>(Actor->GetComponentByClass(UUStatsComponent::StaticClass()));
 	}
 
+
+	// AI Stats
 	TSharedPtr<FJsonObject> AiStatsJson = MakeShareable(new FJsonObject);
-	TSharedPtr<FJsonObject> PlyStatsJson = MakeShareable(new FJsonObject);
+	if (AiStatsComp)
+	{
+		AiStatsJson->SetNumberField(TEXT("level"), 0);
+		AiStatsJson->SetNumberField(TEXT("hpMax"), AiStatsComp->MaxHealthPoints);
+		AiStatsJson->SetNumberField(TEXT("hp"), AiStatsComp->HealthPoints);
+		AiStatsJson->SetNumberField(TEXT("speed"), AiStatsComp->Speed);
+		AiStatsJson->SetNumberField(TEXT("apMax"), AiStatsComp->ActionPoints);
+		AiStatsJson->SetNumberField(TEXT("ap"), AiStatsComp->MaxActionPoints);
 
-	auto FillStats = [](UUStatsComponent* StatsComp, TSharedPtr<FJsonObject> StatsJson)
-		{
-			if (StatsComp)
-			{
-				StatsJson->SetNumberField(TEXT("level"), 0);
-				StatsJson->SetNumberField(TEXT("hpMax"), StatsComp->MaxHealthPoints);
-				StatsJson->SetNumberField(TEXT("hp"), StatsComp->HealthPoints);
-				StatsJson->SetNumberField(TEXT("speed"), StatsComp->Speed);
-				StatsJson->SetNumberField(TEXT("apMax"), StatsComp->MaxActionPoints);
-				StatsJson->SetNumberField(TEXT("ap"), StatsComp->ActionPoints);
+		TSharedPtr<FJsonObject> AiDetailedStats = MakeShareable(new FJsonObject);
+		AiDetailedStats->SetNumberField(TEXT("phy_atk"), AiStatsComp->PhysicalAttack);
+		AiDetailedStats->SetNumberField(TEXT("phy_def"), AiStatsComp->PhysicalDefense);
+		AiDetailedStats->SetNumberField(TEXT("spi_atk"), AiStatsComp->SpiritualAttack);
+		AiDetailedStats->SetNumberField(TEXT("spi_def"), AiStatsComp->SpiritualDefense);
+		AiDetailedStats->SetNumberField(TEXT("ele_atk"), AiStatsComp->ElementalAttack);
+		AiDetailedStats->SetNumberField(TEXT("ele_def"), AiStatsComp->ElementalDefense);
+		AiStatsJson->SetObjectField(TEXT("stats"), AiDetailedStats);
+	}
+	else
+	{
+		AiStatsJson->SetNumberField(TEXT("level"), 0);
+		AiStatsJson->SetNumberField(TEXT("hpMax"), 0);
+		AiStatsJson->SetNumberField(TEXT("hp"), 0);
+		AiStatsJson->SetNumberField(TEXT("speed"), 0);
+		AiStatsJson->SetNumberField(TEXT("apMax"), 0);
+		AiStatsJson->SetNumberField(TEXT("ap"), 0);
+		
+		TSharedPtr<FJsonObject> AiDetailedStats = MakeShareable(new FJsonObject);
+		AiDetailedStats->SetNumberField(TEXT("phy_atk"), 0);
+		AiDetailedStats->SetNumberField(TEXT("phy_def"), 0);
+		AiDetailedStats->SetNumberField(TEXT("spi_atk"), 0);
+		AiDetailedStats->SetNumberField(TEXT("spi_def"), 0);
+		AiDetailedStats->SetNumberField(TEXT("ele_atk"), 0);
+		AiDetailedStats->SetNumberField(TEXT("ele_def"), 0);
+		AiStatsJson->SetObjectField(TEXT("stats"), AiDetailedStats);
+	}
 
-				TSharedPtr<FJsonObject> SubStats = MakeShareable(new FJsonObject);
-				SubStats->SetNumberField(TEXT("phy_atk"), StatsComp->PhysicalAttack);
-				SubStats->SetNumberField(TEXT("phy_def"), StatsComp->PhysicalDefense);
-				SubStats->SetNumberField(TEXT("spi_atk"), StatsComp->SpiritualAttack);
-				SubStats->SetNumberField(TEXT("spi_def"), StatsComp->SpiritualDefense);
-				SubStats->SetNumberField(TEXT("ele_atk"), StatsComp->ElementalAttack);
-				SubStats->SetNumberField(TEXT("ele_def"), StatsComp->ElementalDefense);
+	// Player Stats
+	TSharedPtr<FJsonObject> PlayerStatsJson = MakeShareable(new FJsonObject);
+	if (PlayerStatsComp)
+	{
+		PlayerStatsJson->SetNumberField(TEXT("level"), 0);
+		PlayerStatsJson->SetNumberField(TEXT("hpMax"), PlayerStatsComp->MaxHealthPoints);
+		PlayerStatsJson->SetNumberField(TEXT("hp"), PlayerStatsComp->HealthPoints);
+	}
+	else
+	{
+		PlayerStatsJson->SetNumberField(TEXT("level"), 0);
+		PlayerStatsJson->SetNumberField(TEXT("hpMax"), 0);
+		PlayerStatsJson->SetNumberField(TEXT("hp"), 0);
+	}
 
-				StatsJson->SetObjectField(TEXT("stats"), SubStats);
-			}
-			else
-			{
-				StatsJson->SetNumberField(TEXT("level"), 0);
-				StatsJson->SetNumberField(TEXT("hpMax"), 0);
-				StatsJson->SetNumberField(TEXT("hp"), 0);
-				StatsJson->SetNumberField(TEXT("speed"), 0);
-				StatsJson->SetNumberField(TEXT("apMax"), 0);
-				StatsJson->SetNumberField(TEXT("ap"), 0);
-
-				TSharedPtr<FJsonObject> SubStats = MakeShareable(new FJsonObject);
-				SubStats->SetNumberField(TEXT("phy_atk"), 0);
-				SubStats->SetNumberField(TEXT("phy_def"), 0);
-				SubStats->SetNumberField(TEXT("spi_atk"), 0);
-				SubStats->SetNumberField(TEXT("spi_def"), 0);
-				SubStats->SetNumberField(TEXT("ele_atk"), 0);
-				SubStats->SetNumberField(TEXT("ele_def"), 0);
-
-				StatsJson->SetObjectField(TEXT("stats"), SubStats);
-			}
-		};
-
-	FillStats(AiStatsComp, AiStatsJson);
-
-	FillStats(PlayerStatsComp, PlyStatsJson);
-
+	// Combine into combat_stats structure
 	TSharedPtr<FJsonObject> CombatStatsJson = MakeShareable(new FJsonObject);
 	CombatStatsJson->SetObjectField(TEXT("ai_stats"), AiStatsJson);
-	AiStatsJson->SetObjectField(TEXT("ply_stats"), PlyStatsJson);
+	CombatStatsJson->SetObjectField(TEXT("ply_stats"), PlayerStatsJson);
 
 	TSharedPtr<FJsonObject> ResultJson = MakeShareable(new FJsonObject);
 	ResultJson->SetObjectField(TEXT("combat_stats"), CombatStatsJson);
