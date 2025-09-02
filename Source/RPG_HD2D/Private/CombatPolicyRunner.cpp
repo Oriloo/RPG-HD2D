@@ -6,6 +6,8 @@
 #include "CombatJsonExporter.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "ATurnGameMode.h"
+#include "UTurnCombatComponent.h"
 
 // --- Lifecycle -------------------------------------------------------------
 UCombatPolicyRunner::UCombatPolicyRunner()
@@ -274,64 +276,193 @@ void UCombatPolicyRunner::executeAction()
 	UCombatJsonExporter* Exporter = NewObject<UCombatJsonExporter>();
 	TSharedPtr<FJsonObject> CombatJson = Exporter->MakeCombatStateToJson(GameState);
 
-    // Chemin vers l'exécutable Python et le script
-    FString PythonExecutable = TEXT("python"); // ou chemin complet vers python.exe
-    FString ScriptPath = FPaths::ProjectDir() + TEXT("Python/main.py");
-    
-    // Vérifier si le fichier existe
-    if (!FPaths::FileExists(ScriptPath))
-    {
-        UE_LOG(LogTemp, Error, TEXT("Script Python non trouvé: %s"), *ScriptPath);
-        return;
-    }
-    
-    // Paramètres pour le script Python
-    FString Parameters = FString::Printf(TEXT("\"%s\""), *ScriptPath);
-    
-    // Variables pour le processus
-    void* ReadPipe = nullptr;
-    void* WritePipe = nullptr;
-    
-    // Créer le processus Python
-    FProcHandle ProcessHandle = FPlatformProcess::CreateProc(
-        *PythonExecutable,
-        *Parameters,
-        false,      // bLaunchDetached
-        true,       // bLaunchHidden
-        true,       // bLaunchReallyHidden
-        nullptr,    // OutProcessID
-        0,          // PriorityModifier
-        nullptr,    // OptionalWorkingDirectory
-        WritePipe,  // PipeWriteChild
-        ReadPipe    // PipeReadChild
-    );
-    
-    if (ProcessHandle.IsValid())
-    {
+	// Chemin vers l'exécutable Python et le script
+	FString PythonExecutable = TEXT("python"); // ou chemin complet vers python.exe
+	FString ScriptPath = FPaths::ProjectDir() + TEXT("Python/main.py");
 
+	// Vérifier si le fichier existe
+	if (!FPaths::FileExists(ScriptPath))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Script Python non trouvé: %s"), *ScriptPath);
+		return;
+	}
+
+	// Paramètres pour le script Python
+	FString Parameters = FString::Printf(TEXT("\"%s\""), *ScriptPath);
+
+	// Variables pour le processus
+	void* ReadPipe = nullptr;
+	void* WritePipe = nullptr;
+
+	// Créer le processus Python
+	FProcHandle ProcessHandle = FPlatformProcess::CreateProc(
+		*PythonExecutable,
+		*Parameters,
+		false,      // bLaunchDetached
+		true,       // bLaunchHidden
+		true,       // bLaunchReallyHidden
+		nullptr,    // OutProcessID
+		0,          // PriorityModifier
+		nullptr,    // OptionalWorkingDirectory
+		WritePipe,  // PipeWriteChild
+		ReadPipe    // PipeReadChild
+	);
+
+	if (ProcessHandle.IsValid())
+	{
 		UE_LOG(LogTemp, Log, TEXT("Script Python lancé avec succès: %s"), *ScriptPath);
-        
-        // Attendre la fin du processus (optionnel)
-        FPlatformProcess::WaitForProc(ProcessHandle);
-        
-        // Lire la sortie si nécessaire
-        if (ReadPipe)
-        {
-            FString Output = FPlatformProcess::ReadPipe(ReadPipe);
-            if (!Output.IsEmpty())
-            {
-                UE_LOG(LogTemp, Warning, TEXT("Sortie Python: %s"), *Output);
-            }
-        }
-        
-        // Nettoyer
-        FPlatformProcess::ClosePipe(ReadPipe, WritePipe);
-        FPlatformProcess::CloseProc(ProcessHandle);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("Échec du lancement du script Python"));
-    }
+
+		// Attendre la fin du processus (optionnel)
+		FPlatformProcess::WaitForProc(ProcessHandle);
+
+		// Lire la sortie si nécessaire
+		if (ReadPipe)
+		{
+			FString Output = FPlatformProcess::ReadPipe(ReadPipe);
+			if (!Output.IsEmpty())
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Sortie Python: %s"), *Output);
+			}
+		}
+
+		// Nettoyer
+		FPlatformProcess::ClosePipe(ReadPipe, WritePipe);
+		FPlatformProcess::CloseProc(ProcessHandle);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Échec du lancement du script Python"));
+	}
+
+	//lit le fichier ai_result.json
+	FString ResultFilePath = FPaths::ProjectDir() + TEXT("Python/ai_result.json");
+
+	// Vérifier si le fichier de résultat existe
+	if (!FPaths::FileExists(ResultFilePath))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Fichier de résultat IA non trouvé: %s"), *ResultFilePath);
+		return;
+	}
+
+	// Lire le contenu du fichier
+	FString JsonContent;
+	if (!FFileHelper::LoadFileToString(JsonContent, *ResultFilePath))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Impossible de lire le fichier: %s"), *ResultFilePath);
+		return;
+	}
+
+	// Parser le JSON
+	TSharedPtr<FJsonObject> ResultJson = ParseJson(JsonContent);
+	if (!ResultJson.IsValid())
+	{
+		UE_LOG(LogTemp, Error, TEXT("Impossible de parser le JSON de résultat"));
+		return;
+	}
+
+	// Extraire les probabilités et l'index choisi
+	TArray<float> Probabilities;
+	Probabilities.Add(JNum(ResultJson, TEXT("P1"), 0.0f));
+	Probabilities.Add(JNum(ResultJson, TEXT("P2"), 0.0f));
+	Probabilities.Add(JNum(ResultJson, TEXT("P3"), 0.0f));
+	Probabilities.Add(JNum(ResultJson, TEXT("P4"), 0.0f));
+	Probabilities.Add(JNum(ResultJson, TEXT("P5"), 0.0f));
+
+	int32 ChosenIndex = FMath::RoundToInt(JNum(ResultJson, TEXT("chosen_index"), 0.0f));
+
+	// Logger les résultats
+	FString ProbsStr;
+	for (int32 i = 0; i < Probabilities.Num(); ++i)
+	{
+		ProbsStr += FString::Printf(TEXT("%sP%d=%.4f"), (i > 0 ? TEXT(", ") : TEXT("")), i + 1, Probabilities[i]);
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("Résultat IA - Probabilités: [%s]"), *ProbsStr);
+	UE_LOG(LogTemp, Display, TEXT("Résultat IA - Action choisie: %d (probabilité: %.4f)"),
+		ChosenIndex + 1,
+		(ChosenIndex >= 0 && ChosenIndex < Probabilities.Num()) ? Probabilities[ChosenIndex] : 0.0f);
+
+	// Optionnel: afficher avec la fonction existante
+	TArray<float> MockLogits = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f }; // Logits non disponibles depuis le résultat
+	PrintOutputs(MockLogits, Probabilities);
+
+	//get la liste des acteurs dans le tour
+	TArray<AActor*> TurnOrder = GameState->TurnOrder;
+	if (TurnOrder.Num() < 2)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TurnOrder ne contient pas assez d'acteurs"));
+		return;
+	}
+	AActor* AIActor = nullptr;
+	AActor* PlayerActor = nullptr;
+	for (AActor* Actor : TurnOrder)
+	{
+		if (Actor && !(Actor->GetName().Equals(TEXT("BP_Main_Character")) || Actor->GetName().Contains(TEXT("Main_Character")) || Actor->GetName().Contains(TEXT("Player"))))
+		{
+			AIActor = Actor;
+			break;
+		}
+
+	}
+
+	for (AActor* Actor : TurnOrder)
+	{
+		if (Actor)
+		{
+			FString ActorName = Actor->GetName();
+			// Recherche flexible pour différentes variantes du nom
+			if (ActorName.Equals(TEXT("BP_Main_Character")) ||
+				ActorName.Contains(TEXT("Main_Character")) ||
+				ActorName.Contains(TEXT("Player")) ||
+				ActorName.Contains(TEXT("BP_Main")))
+			{
+				PlayerActor = Actor;
+				UE_LOG(LogTemp, Log, TEXT("Trouvé Joueur: %s"), *Actor->GetName());
+				break;
+			}
+		}
+	}
+
+
+	if (!AIActor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Impossible de trouver l'acteur IA dans TurnOrder"));
+		return;
+	}
+	
+	//get la liste des actions de l'ia depuis les composant UActionComponent
+	TArray<UUAttackDataComponent*> AvailableActions;
+	AIActor->GetComponents<UUAttackDataComponent>(AvailableActions);;
+
+	
+	//choisir l'action
+
+	int32 ActionToExecuteIndex = FMath::Clamp(ChosenIndex, 0, AvailableActions.Num() - 1);
+	UUAttackDataComponent* ActionToExecute = AvailableActions[ActionToExecuteIndex];
+	
+	if (!ActionToExecute)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Action choisie est invalide"));
+		return;
+	}
+
+	//get le UtunrCombatComponent de l'IA
+	UUTurnCombatComponent* CombatComp = AIActor->FindComponentByClass<UUTurnCombatComponent>();
+	if (!CombatComp)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Impossible de trouver UUTurnCombatComponent sur l'acteur IA"));
+		return;
+	}
+	if (ChosenIndex != 5)
+	{
+		// Exécuter l'action choisie contre le joueur
+		CombatComp->excuteAction(AIActor, PlayerActor, ActionToExecute);	
+	}
+	else
+	{
+		CombatComp->EndTurn();
+		return;
+	}
 
 
 }

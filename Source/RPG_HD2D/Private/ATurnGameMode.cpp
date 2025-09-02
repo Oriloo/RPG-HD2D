@@ -95,29 +95,22 @@ void ATurnGameMode::StartNextTurn()
     AActor* CurrentActor = TurnState->TurnOrder[TurnState->CurrentTurnIndex];
     if (!CurrentActor) return;
 
-    //get le buff et debudf du personnage courant si c est une IA
-    UStatusEffectComponent* StatusEffect = CurrentActor->FindComponentByClass<UStatusEffectComponent>();
-    if (!CurrentActor->GetName().Equals(TEXT("BP_Main_Character")))
-    {
-        // Pour IA : stocker l'effet actif dans une variable locale ou traiter ici
-        if (StatusEffect)
-        {  
-            TurnState->AiActiveEffect = StatusEffect;
-            
+    // Dans StartNextTurn(), TOUJOURS assigner les effets actifs
+	UStatusEffectComponent* AIStatusEffect = nullptr;
+	UStatusEffectComponent* PlayerStatusEffect = nullptr;
 
-        }
+    // Trouver les composants d'effets pour tous les acteurs
+	for (AActor* Actor : TurnState->TurnOrder)
+	{
+		if (Actor && (Actor->GetName().Equals(TEXT("BP_Main_Character")) || Actor->GetName().Contains(TEXT("Main_Character")) || Actor->GetName().Contains(TEXT("Player"))))
+			PlayerStatusEffect = Actor->FindComponentByClass<UStatusEffectComponent>();
+		else
+			AIStatusEffect = Actor->FindComponentByClass<UStatusEffectComponent>();
+	}
 
-        
-    }
-    else
-    {
-        if (StatusEffect)
-        {
-            TurnState->AiActiveEffect = StatusEffect;
-
-        }
-    }
-
+	// TOUJOURS assigner (peu importe qui joue)
+	TurnState->AiActiveEffect = AIStatusEffect;
+	TurnState->PlayerActiveEffect = PlayerStatusEffect;
     if (UUTurnCombatComponent* CombatComp = CurrentActor->FindComponentByClass<UUTurnCombatComponent>())
     {
         CombatComp->StartTurn();

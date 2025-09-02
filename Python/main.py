@@ -1,27 +1,60 @@
-import json, torch
 from __future__ import annotations
+import json, torch, os
 
+# ------------------------- Adapter for your payload --------------------------
+def adapt_payload_to_encoder_schema(d: dict) -> dict:
+    """
+    Map your JSON schema (ply_recent_actions, actives, combat_state, nested ply_stats)
+    into the internal schema used by the encoder/normalizer.
+    """
+    # Copy AI stats and peel out nested player/enemy stats
+    ai_stats_src = dict(d["combat_stats"]["ai_stats"])  # shallow copy
+    enemy_stats_src = ai_stats_src.pop("ply_stats", None)
+
+    # Build the structure expected internally
+    out = {
+        "enemy_recent_actions": d["ply_recent_actions"],
+        "actifs": {
+            "ai_actifs":    d["actives"]["ai_active_effects"],
+            "enemy_actifs": d["actives"]["ply_active_effects"],
+        },
+        "combat_stats": {
+            "ai_stats": ai_stats_src,
+            "enemy_stats": enemy_stats_src or {
+                # Fallbacks (keeps normalizer safe if missing)
+                "level": 1,
+                "hpMax": ai_stats_src.get("hpMax", 100),
+                "hp":    ai_stats_src.get("hpMax", 100),
+            },
+        },
+        # pluralize to match internal naming
+        "combat_states": d["combat_state"],
+        "ai_available_actions": d["ai_available_actions"],
+        "ai_actions_history":   d["ai_actions_history"],
+    }
+    return out
+
+# ------------------------------ Encoder -------------------------------------
 class state_encoder():
     def __init__(self):
         pass
 
-    def data_to_tensor(self, data, dtype=torch.float32, device="cuda"):
-        """
-        Transform a list of numbers into a PyTorch tensor.
-        """
+    def data_to_tensor(self, data, dtype=torch.float32, device="cpu"):
+        """Transform a list of numbers into a PyTorch tensor (default CPU)."""
         return torch.tensor(data, dtype=dtype, device=device)
 
     def json_to_list(self, path):
         with open(path, 'r', encoding='utf-8') as file:
-            data = json.load(file)
-        return self.dict_to_list(data)
+            raw_user = json.load(file)
+        # adapt then encode
+        return self.dict_to_list(adapt_payload_to_encoder_schema(raw_user))
 
     def dict_to_list(self, data_dict):
         """Convert a raw observation dict to a flat feature list (length=92)."""
         normalized_data = normalizer(data_dict)
 
         def extract_effect_values(effect):
-            return [effect["code"], effect["multiplier"], effect["duration"]]
+            return [effect["code"], effect["multiplier"], effect["duration"] + 1]
 
         def extract_action_values(action):
             values = [action["cost"]]
@@ -68,71 +101,56 @@ class state_encoder():
         assert len(values_list) == 92, f"Expected 92 features, got {len(values_list)}"
         return values_list
 
-    # === NEW: build the [5]-action availability mask ==========================
+    # === [5]-action availability mask =======================================
     def build_availability_mask(self, normalized_data) -> torch.Tensor:
         """
         Returns a tensor of shape (5,) for [P1,P2,P3,P4,P5],
         where P1..P4 are 1 if (slot non-empty AND cost <= ap), else 0.
-        P5 (Skip) can be 0 here; the decoder will force it to 1.
+        P5 (Skip) can be 0; the decoder will force it to 1.
         """
-        ap = normalized_data["combat_stats"]["ai_stats"]["ap"]  # already normalized [0,1]
-        # cost is also normalized [0,1] with max=4 → compare in normalized space
+        ap = normalized_data["combat_stats"]["ai_stats"]["ap"]  # normalized [0,1]
         mask = [0, 0, 0, 0, 0]
-        actions = normalized_data["ai_available_actions"]  # CHANGED (same rename)
+        actions = normalized_data["ai_available_actions"]
 
         for i in range(4):
             slot = actions[i]
-            # slot is "non-empty" if it has at least one non-zero field
             slot_non_empty = (slot["cost"] > 0.0) or any(
                 e["code"] > 0.0 or e["multiplier"] > 0.0 or e["duration"] > 0.0
                 for e in slot["effects"]
             )
-            # available if non-empty AND cost <= ap
             available = slot_non_empty and (slot["cost"] <= ap)
             mask[i] = 1 if available else 0
 
-        # P5 (Skip) left as 0/1 here; decoder will force it to 1 anyway
         mask[4] = 0
         return torch.tensor(mask, dtype=torch.int32)
 
-
+# ------------------------------ Bounds & Normalizer --------------------------
 class FighterGenBounds:
-    """
-    Pure helper (no side effects) that mirrors fighter_gen formulas.
-    Use FighterGenBounds.at_level(L) to get per-level dynamic bounds.
-    """
-
-    # static “global” ceilings implied by the generator
     COST_MIN, COST_MAX = 0, 4
     CODE_MIN, CODE_MAX = 0, 10
-    DURATION_MIN, DURATION_MAX = 0, 4  # generator effectively clamps to >=1, keep headroom
-    MULT_BASE_MIN, MULT_BASE_MAX = 20, 25  # used for random effects
-    MULT_COST_MIN, MULT_COST_MAX = 1, 4    # random actions cost in [1..4]
-    MULT_FIXED_MIN, MULT_FIXED_MAX = 15, 20  # for a few predefined effects at cost 0
+    DURATION_MIN, DURATION_MAX = 0, 4
+    MULT_BASE_MIN, MULT_BASE_MAX = 20, 25
+    MULT_COST_MIN, MULT_COST_MAX = 1, 4
+    MULT_FIXED_MIN, MULT_FIXED_MAX = 15, 20
 
     @classmethod
     def eff_multiplier_minmax(cls) -> tuple[float, float]:
-        # Random effects: randint(20,25) * (cost+1) with cost in [1..4] -> [20*2 .. 25*5] = [40..125]
-        rand_min = cls.MULT_BASE_MIN * (cls.MULT_COST_MIN + 1)
+        # randint(20,25) * (cost+1) with cost in [1..4] -> [40..125]
         rand_max = cls.MULT_BASE_MAX * (cls.MULT_COST_MAX + 1)
-        # Fixed effects exist at cost 0: [15..20]
         return (0.0, max(rand_max, cls.MULT_FIXED_MAX))  # [0 .. 125]
 
     @staticmethod
     def hpmax_at_level(level: int) -> tuple[float, float]:
-        # In generator: r in [80..120];  hpMax = r + r * (level-1) * 0.75
         r_min, r_max = 80.0, 120.0
         mult = 1.0 + max(0, level - 1) * 0.75
         return (r_min * mult, r_max * mult)
 
     @staticmethod
     def speed_at_level(level: int) -> tuple[float, float]:
-        # speed = randint(3,5) + level
         return (3 + level, 5 + level)
 
     @staticmethod
     def apmax_at_level(level: int) -> tuple[float, float]:
-        # apMax = 4 + int(level/5)  -> 4 (L<5) or 5 (L==5)
         return (4.0, 4.0 + (1.0 if level >= 5 else 0.0))
 
     @staticmethod
@@ -142,13 +160,10 @@ class FighterGenBounds:
 
     @staticmethod
     def stat_max_at_level(level: int) -> float:
-        # init_stat = 30 * level
-        # principale up to 35% → 0.35 * 30 * level = 10.5 * level
         return 10.5 * level
 
     @classmethod
     def at_level(cls, level: int) -> dict:
-        """Convenience bundle of dynamic bounds for a given level."""
         hp_lo, hp_hi = cls.hpmax_at_level(level)
         spd_lo, spd_hi = cls.speed_at_level(level)
         apM_lo, apM_hi = cls.apmax_at_level(level)
@@ -162,80 +177,55 @@ class FighterGenBounds:
             "speed": (spd_lo, spd_hi),
             "apMax": (apM_lo, apM_hi),
             "ap":    (ap_lo, ap_hi),
-
-            # detailed stats (we normalize vs principale ceiling for safety)
             "stat":  (0.0, stat_hi),
-
-            # action/effect fields
             "cost":       (cls.COST_MIN, cls.COST_MAX),
-            "code":       (cls.CODE_MIN, cls.CODE_MAX),
+            "code":       (cls.CODE_MIN, cls.Code_MAX) if False else (cls.CODE_MIN, cls.CODE_MAX),  # keep calm, linters :)
             "multiplier": (mult_lo, mult_hi),
             "duration":   (cls.DURATION_MIN, cls.DURATION_MAX),
-
-            # combat state fields
-            "round_count": (0.0, 50.0),  # keep env cap headroom
-            "action_left": (0.0, 3.0),   # MAX_ACTIONS_PER_TURN
+            "round_count": (0.0, 50.0),
+            "action_left": (0.0, 3.0),
         }
 
 def normalizer(data: dict) -> dict:
     """
-    Normalize the exact 92-feature structure your state_encoder expects,
-    but derive min/max from fighter_gen's formulas at the CURRENT AI level.
-    Output structure is unchanged.
+    Accepts *already-adapted* schema (use adapt_payload_to_encoder_schema first).
+    Normalizes values to [0,1] using level-aware bounds.
     """
     def clamp01(x: float) -> float:
         return 0.0 if x <= 0.0 else (1.0 if x >= 1.0 else x)
 
     def norm_val(v, lo, hi) -> float:
         lo = float(lo); hi = float(hi)
-        if hi <= lo:  # safety
+        if hi <= lo:
             return 0.0
         return clamp01((float(v) - lo) / (hi - lo))
 
-    # --- 1) determine the AI level and retrieve dynamic bounds --------------
     ai_src = data["combat_stats"]["ai_stats"]
     level = int(ai_src.get("level", 1))
     level = 1 if level < 1 else (5 if level > 5 else level)
     B = FighterGenBounds.at_level(level)
 
-    # Small helpers for common fields
     def n_cost(x):  lo,hi = B["cost"];       return norm_val(x, lo, hi)
     def n_code(x):  lo,hi = B["code"];       return norm_val(x, lo, hi)
     def n_mult(x):  lo,hi = B["multiplier"]; return norm_val(x, lo, hi)
     def n_dur(x):   lo,hi = B["duration"];   return norm_val(x, lo, hi)
 
     def norm_effect(e: dict) -> dict:
-        return {
-            "code":       n_code(e["code"]),
-            "multiplier": n_mult(e["multiplier"]),
-            "duration":   n_dur(e["duration"]),
-        }
+        return {"code": n_code(e["code"]), "multiplier": n_mult(e["multiplier"]), "duration": n_dur(e["duration"])}
 
     def norm_action(a: dict) -> dict:
-        return {
-            "cost":    n_cost(a["cost"]),
-            "effects": [norm_effect(x) for x in a["effects"]],
-        }
+        return {"cost": n_cost(a["cost"]), "effects": [norm_effect(x) for x in a["effects"]]}
 
     out = {}
-
-    # --- 2) enemy recent actions (3) ----------------------------------------
     out["enemy_recent_actions"] = [norm_action(a) for a in data["enemy_recent_actions"]]
-
-    # --- 3) actifs (ai + enemy) ---------------------------------------------
     out["actifs"] = {
         "ai_actifs":    [norm_effect(x) for x in data["actifs"]["ai_actifs"]],
         "enemy_actifs": [norm_effect(x) for x in data["actifs"]["enemy_actifs"]],
     }
 
-    # --- 4) combat stats (ai + enemy) ---------------------------------------
-    # ai
-    hpMax_lo, hpMax_hi = B["hpMax"]
-    hp_lo, hp_hi       = B["hp"]
-    spd_lo, spd_hi     = B["speed"]
-    apM_lo, apM_hi     = B["apMax"]
-    ap_lo, ap_hi       = B["ap"]
-    stat_lo, stat_hi   = B["stat"]
+    hpMax_lo, hpMax_hi = B["hpMax"]; hp_lo, hp_hi = B["hp"]
+    spd_lo, spd_hi = B["speed"]; apM_lo, apM_hi = B["apMax"]; ap_lo, ap_hi = B["ap"]
+    stat_lo, stat_hi = B["stat"]
 
     out["combat_stats"] = {
         "ai_stats": {
@@ -254,8 +244,6 @@ def normalizer(data: dict) -> dict:
                 "ele_def": norm_val(ai_src["stats"]["ele_def"], stat_lo, stat_hi),
             },
         },
-        # enemy (we don’t know enemy level’s role allocation → use same per-AI level ranges;
-        # this matches how you trained/encode and keeps magnitudes consistent)
         "enemy_stats": {
             "level": norm_val(data["combat_stats"]["enemy_stats"]["level"], *B["level"]),
             "hpMax": norm_val(data["combat_stats"]["enemy_stats"]["hpMax"], hpMax_lo, hpMax_hi),
@@ -263,63 +251,34 @@ def normalizer(data: dict) -> dict:
         },
     }
 
-    # --- 5) combat states ----------------------------------------------------
     out["combat_states"] = {
         "round_count": norm_val(data["combat_states"]["round_count"], *B["round_count"]),
         "action_left": norm_val(data["combat_states"]["action_left"], *B["action_left"]),
     }
 
-    # --- 6) available actions (4) + history (2) ------------------------------
     out["ai_available_actions"] = [norm_action(a) for a in data["ai_available_actions"]]
     out["ai_actions_history"]   = [norm_action(a) for a in data["ai_actions_history"]]
-
     return out
 
-
+# ------------------------------ Decoder -------------------------------------
 def decode_action(nn_output, mask):
-    """
-    nn_output: tensor of shape (5,) from the model  
-    mask:   tensor of shape (5,), 1 = available, 0 = unavailable
-            (Skip can be 0 here, we will force it to 1)
-
-    Returns:
-      probs: tensor of shape (5,), normalized probabilities
-      choice: int index 0..4 of the chosen action
-      output_json: dict with P1..P5 probabilities
-    """
-    # === NEW: ensure stable dtype ===============================
     nn_output = nn_output.to(torch.float32)
     mask = mask.to(torch.int)
-    # ============================================================
 
-    # 1. Force Skip (last index) to always be available
     mask = mask.clone()
-    mask[-1] = 1
+    mask[-1] = 1  # force Skip available
 
-    # 2. Zero out nn_output for unavailable actions
     masked_nn_output = nn_output.clone()
-    masked_nn_output[mask == 0] = -1e9  # very negative = prob ~ 0
-
-    # 3. Softmax to turn nn_output into probabilities
+    masked_nn_output[mask == 0] = -1e9
     probs = torch.softmax(masked_nn_output, dim=0)
-
-    # 4. Pick the action with the highest probability
     choice = int(torch.argmax(probs).item())
-
-    # 5. Build JSON-style output
     output_json = {
-        "P1": float(probs[0]),
-        "P2": float(probs[1]),
-        "P3": float(probs[2]),
-        "P4": float(probs[3]),
-        "P5": float(probs[4]),
-        "chosen_index": choice
+        "P1": float(probs[0]), "P2": float(probs[1]), "P3": float(probs[2]),
+        "P4": float(probs[3]), "P5": float(probs[4]), "chosen_index": choice
     }
-
     return probs, choice, output_json
 
-
-# === Define your trained model shape (must match training) ===
+# ------------------------------ Model ---------------------------------------
 class PolicyMLP(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -331,38 +290,76 @@ class PolicyMLP(torch.nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.net(x)
 
-
+# ------------------------------- Main ---------------------------------------
 def main():
-    # 1. Load raw JSON data
-    with open("features.json", "r", encoding="utf-8") as f:
-        raw_data = json.load(f)
+    script_dir = os.path.dirname(__file__)
+    # 1) Read user-format JSON
+    features_path = os.path.join(script_dir, "features.json")
+    # Use utf-8-sig to gracefully handle files saved with a UTF-8 BOM
+    with open(features_path, "r", encoding="utf-8-sig") as f:
+        raw_user = json.load(f)
 
-    # 2. Normalize + encode to 92 features
+    # 2) Adapt to internal schema used by encoder/normalizer
+    raw = adapt_payload_to_encoder_schema(raw_user)
+
+    # 3) 92-feature encoding
     encoder = state_encoder()
-    feature_list = encoder.dict_to_list(raw_data)
-    x = encoder.data_to_tensor(feature_list, dtype=torch.float32).unsqueeze(0)  # [1,92]
+    feature_list = encoder.dict_to_list(raw)
+    x = encoder.data_to_tensor(feature_list, dtype=torch.float32, device="cpu").unsqueeze(0)  # [1,92]
 
-    # 3. Build mask from normalized data
-    normalized_data = normalizer(raw_data)
-    mask = encoder.build_availability_mask(normalized_data)
+    # 4) Mask from normalized data
+    normalized = normalizer(raw)
+    mask = encoder.build_availability_mask(normalized)
 
-    # 4. Load model
+    # 5) Load model
     model = PolicyMLP()
-    model.load_state_dict(torch.load("Python/best_final - pop192 gen1024.pt", map_location="cpu"))
+    model_path = os.path.join(script_dir, "best_final - pop192 gen1024.pt")
+    # Load checkpoint robustly: file may contain a dict with wrapper keys
+    checkpoint = torch.load(model_path, map_location="cpu")
+    # Extract common nested keys if present
+    if isinstance(checkpoint, dict):
+        if "best_state_dict" in checkpoint:
+            state_dict = checkpoint["best_state_dict"]
+        elif "state_dict" in checkpoint:
+            state_dict = checkpoint["state_dict"]
+        else:
+            state_dict = checkpoint
+    else:
+        state_dict = checkpoint
+    # Try strict load first, then fallback to non-strict to handle minor mismatches
+    try:
+        model.load_state_dict(state_dict)
+    except RuntimeError as e:
+        print("Warning: strict load failed, retrying with strict=False:", e)
+        model.load_state_dict(state_dict, strict=False)
     model.eval()
 
-    # 5. Run inference
+    # 6) Inference
     with torch.no_grad():
         nn_output = model(x)[0]  # [5]
 
-    # 6. Decode result
+    # 7) Decode + save
     _, choice, output_json = decode_action(nn_output, mask)
-
-    # 7. Print and save result
     print("Model output:", output_json)
-    with open("Python/ai_result.json", "w", encoding="utf-8") as f:
+    out_path = os.path.join(script_dir, "ai_result.json")
+    with open(out_path, "w", encoding="utf-8") as f:
         json.dump(output_json, f, indent=2)
 
-
 if __name__ == "__main__":
-    main()
+    import traceback, os
+    script_dir = os.path.dirname(__file__)
+    try:
+        print("CWD:", os.getcwd())
+        main()
+    except Exception as e:
+        print("Exception during run:", e)
+        traceback.print_exc()
+        # Try to write an error file so user can inspect what went wrong
+        err = {"error": str(e), "traceback": traceback.format_exc()}
+        try:
+            out_err = os.path.join(script_dir, "ai_result.json")
+            with open(out_err, "w", encoding="utf-8") as f:
+                json.dump(err, f, indent=2)
+            print(f"Wrote error details to {out_err}")
+        except Exception as e2:
+            print("Failed to write error file:", e2)

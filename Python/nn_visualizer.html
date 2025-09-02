@@ -1,0 +1,357 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NN Visualizer</title>
+    <style>
+        :root {
+            --bg: #0b0f14;
+            --fg: #e6eef7;
+            --muted: #9db1c3;
+            --accent: #4cc9f0;
+            --good: #2dd4bf;
+            --warn: #f59e0b;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg);
+            color: var(--fg);
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+        }
+
+        header {
+            padding: 10px 14px;
+            display: flex;
+            gap: 14px;
+            align-items: center;
+            border-bottom: 1px solid #1e293b;
+        }
+
+        header h1 {
+            font-size: 16px;
+            margin: 0;
+            font-weight: 600;
+        }
+
+        header .sep {
+            opacity: .4
+        }
+
+        main {
+            display: flex;
+            height: calc(100vh - 52px);
+        }
+
+        #left {
+            width: 320px;
+            border-right: 1px solid #1e293b;
+            overflow: auto;
+            padding: 10px;
+        }
+
+        #right {
+            flex: 1;
+            position: relative;
+        }
+
+        #canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .small {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            border: 1px solid #1e293b;
+            color: var(--muted);
+        }
+
+        .row {
+            margin: 6px 0;
+        }
+
+        details {
+            margin: 8px 0;
+        }
+
+        summary {
+            cursor: pointer;
+        }
+
+        ul {
+            margin: 6px 0 6px 16px;
+            padding: 0;
+        }
+
+        li {
+            list-style: none;
+            margin: 2px 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .valueBar {
+            height: 6px;
+            background: #1e293b;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 3px;
+        }
+
+        .valueBar>div {
+            height: 100%;
+            background: linear-gradient(90deg, #94a3b8, var(--accent));
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Neural Network — Live Visualizer</h1>
+        <span class="sep">|</span>
+        <span class="small">Polling features.json + model forward in real time</span>
+        <span class="sep">|</span>
+        <label class="small">Refresh(ms) <input id="interval" type="number" value="750"
+                style="width:70px; background:#0b0f14; color:#e6eef7; border:1px solid #334155; padding:2px 6px; border-radius:4px;" /></label>
+        <button id="toggle"
+            style="margin-left:8px; background:#1f2937; color:#e6eef7; border:1px solid #334155; padding:6px 10px; border-radius:6px; cursor:pointer">Pause</button>
+        <span class="sep">|</span>
+        <label class="small" style="display:flex; align-items:center; gap:6px;">
+            Min |a| for edges
+            <input id="minMag" type="range" min="0" max="1" step="0.01" value="0.05" style="width:140px;">
+            <span id="minMagVal" class="pill">0.05</span>
+        </label>
+        <span id="status" class="small" style="margin-left:auto">—</span>
+    </header>
+    <main>
+        <section id="left">
+            <div class="row small">Architecture: <span id="arch" class="pill">—</span></div>
+            <details open>
+                <summary>Inputs (normalized) — names</summary>
+                <ul id="inputs"></ul>
+            </details>
+            <details open>
+                <summary>Outputs (softmax)</summary>
+                <ul id="outputs"></ul>
+            </details>
+        </section>
+        <section id="right">
+            <canvas id="canvas"></canvas>
+        </section>
+    </main>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const inputsUl = document.getElementById('inputs');
+        const outputsUl = document.getElementById('outputs');
+        const archSpan = document.getElementById('arch');
+        const statusSpan = document.getElementById('status');
+        const intervalInput = document.getElementById('interval');
+        const toggleBtn = document.getElementById('toggle');
+        const minMagInput = document.getElementById('minMag');
+        const minMagVal = document.getElementById('minMagVal');
+
+        let running = true;
+        toggleBtn.addEventListener('click', () => { running = !running; toggleBtn.textContent = running ? 'Pause' : 'Resume'; });
+
+        function setCanvasSize() {
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = canvas.clientWidth * dpr;
+            canvas.height = canvas.clientHeight * dpr;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        new ResizeObserver(setCanvasSize).observe(canvas);
+
+        const LAYOUT = { left: 60, right: 60, top: 40, bottom: 40, vGap: 10 };
+
+        function lerp(a, b, t) { return a + (b - a) * t }
+        function clamp01(x) { return Math.max(0, Math.min(1, x)) }
+
+        function drawNetwork(arch, layerData) {
+            setCanvasSize();
+            const W = canvas.clientWidth, H = canvas.clientHeight;
+            ctx.clearRect(0, 0, W, H);
+            const L = arch.length;
+            const xGap = (W - LAYOUT.left - LAYOUT.right) / (L - 1);
+            const minMag = parseFloat(minMagInput.value || '0');
+
+            // Node positions
+            const positions = [];
+            for (let li = 0; li < L; li++) {
+                const count = arch[li];
+                const x = LAYOUT.left + xGap * li;
+                const vSpace = (H - LAYOUT.top - LAYOUT.bottom);
+                const yGap = vSpace / (count + 1);
+                const nodes = [];
+                for (let i = 0; i < count; i++) {
+                    // Pre-assign idx so edges can read activations correctly
+                    nodes.push({ x, y: LAYOUT.top + yGap * (i + 1), idx: i });
+                }
+                positions.push(nodes);
+            }
+
+            // Edges
+            for (let li = 0; li < L - 1; li++) {
+                const from = positions[li];
+                const to = positions[li + 1];
+                const actFrom = layerData[li] || [];
+                const actTo = layerData[li + 1] || [];
+                // First pass: find local min/max magnitude for this layer pair
+                let minS = Infinity, maxS = -Infinity;
+                for (const a of from) {
+                    const av = Math.abs(actFrom[a.idx] ?? 0);
+                    for (const b of to) {
+                        const bv = Math.abs(actTo[b.idx] ?? 0);
+                        const s = (av + bv) * 0.5;
+                        if (s < minS) minS = s;
+                        if (s > maxS) maxS = s;
+                    }
+                }
+                if (!isFinite(minS) || !isFinite(maxS) || maxS - minS < 1e-9) { minS = 0; maxS = 1; }
+
+                const minW = 0.6, maxW = 4.0; // px
+                for (const a of from) {
+                    for (const b of to) {
+                        // Average magnitude of connected activations
+                        const av = Math.abs(actFrom[a.idx] ?? 0);
+                        const bv = Math.abs(actTo[b.idx] ?? 0);
+                        const s = (av + bv) * 0.5;
+                        if (s < minMag) continue; // threshold: hide weak edges
+
+                        // Normalize within this layer pair's dynamic range
+                        const t = clamp01((s - minS) / (maxS - minS));
+                        ctx.lineWidth = minW + (maxW - minW) * t;
+                        const alpha = 0.08 + 0.42 * t; // slightly stronger for visibility
+                        ctx.strokeStyle = `rgba(76,201,240, ${alpha})`;
+                        ctx.beginPath();
+                        ctx.moveTo(a.x, a.y);
+                        ctx.lineTo(b.x, b.y);
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            // Nodes
+            for (let li = 0; li < L; li++) {
+                const nodes = positions[li];
+                const acts = layerData[li] || [];
+                ctx.strokeStyle = '#233042';
+                for (let i = 0; i < nodes.length; i++) {
+                    const n = nodes[i];
+                    const a = clamp01(Math.abs(acts[i] || 0));
+                    const r = 5 + 4 * a;
+                    ctx.fillStyle = `rgba(148,163,184, ${0.2 + 0.6 * a})`;
+                    ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2); ctx.fill();
+                    ctx.stroke();
+                }
+            }
+
+            // Labels
+            ctx.fillStyle = '#9db1c3';
+            ctx.font = '12px system-ui, Segoe UI, Arial';
+            ctx.textAlign = 'center';
+            const names = layerData.inputNames || [];
+            const first = positions[0];
+            for (let i = 0; i < first.length && i < names.length; i++) {
+                const n = first[i];
+                const val = (layerData[0] && typeof layerData[0][i] === 'number') ? layerData[0][i] : 0;
+                ctx.textAlign = 'right';
+                ctx.fillText(`${names[i]}  (${val.toFixed(3)})`, n.x - 10, n.y + 4);
+            }
+
+            ctx.textAlign = 'left';
+            const last = positions[positions.length - 1];
+            const out = layerData.outputs || [];
+            for (let i = 0; i < last.length && i < out.length; i++) {
+                const n = last[i];
+                const v = (typeof out[i] === 'number') ? out[i] : 0;
+                ctx.fillText(`P${i + 1}: ${v.toFixed(6)}`, n.x + 10, n.y + 4);
+            }
+        }
+
+        function valueBarHTML(v) {
+            const pct = clamp01(v) * 100;
+            return `<div class="valueBar"><div style="width:${pct}%;"></div></div>`;
+        }
+
+        async function fetchJSON(path) {
+            const res = await fetch(path, { cache: 'no-store' });
+            return await res.json();
+        }
+
+        let arch = [92, 128, 64, 5];
+        async function loadArch() {
+            try { const a = await fetchJSON('/api/arch'); arch = a.layers; archSpan.textContent = arch.join(' ⟶ '); }
+            catch (e) { archSpan.textContent = arch.join(' ⟶ ') + ' (offline)'; }
+        }
+
+        function renderInputs(names, values) {
+            inputsUl.innerHTML = '';
+            for (let i = 0; i < names.length; i++) {
+                const li = document.createElement('li');
+                const v = values[i] ?? 0;
+                li.innerHTML = `<span class="small">${i + 1}.</span> ${names[i]} — <code style="color:#cbd5e1">${Number(v).toFixed(3)}</code> ${valueBarHTML(v)}`;
+                inputsUl.appendChild(li);
+            }
+        }
+
+        function renderOutputs(probs) {
+            outputsUl.innerHTML = '';
+            probs = probs || [];
+            for (let i = 0; i < Math.max(5, probs.length); i++) {
+                const li = document.createElement('li');
+                const v = probs[i] ?? 0;
+                li.innerHTML = `<strong>P${i + 1}</strong> — <code style="color:#cbd5e1">${Number(v).toFixed(6)}</code> ${valueBarHTML(v)}`;
+                outputsUl.appendChild(li);
+            }
+        }
+
+        async function tick() {
+            const t0 = performance.now();
+            try {
+                const fwd = await fetchJSON('/api/forward');
+                const outs = await fetchJSON('/api/outputs').catch(() => ({}));
+                const names = fwd.feature_names || [];
+                const feats = fwd.features_normalized || [];
+                const probs = (outs && outs.P1 !== undefined) ? [outs.P1, outs.P2, outs.P3, outs.P4, outs.P5] : (fwd.probs || []);
+                renderInputs(names, feats);
+                renderOutputs(probs);
+                drawNetwork(arch, {
+                    0: feats,
+                    1: fwd.h1 || [],
+                    2: fwd.h2 || [],
+                    inputNames: names,
+                    outputs: probs,
+                });
+                const dt = performance.now() - t0;
+                statusSpan.textContent = `OK • ${(dt).toFixed(0)} ms`;
+            } catch (e) {
+                statusSpan.textContent = 'Error fetching';
+                console.error(e);
+            }
+        }
+
+        loadArch();
+        tick();
+        let timer = setInterval(() => { if (running) tick(); }, parseInt(intervalInput.value, 10));
+        intervalInput.addEventListener('change', () => { clearInterval(timer); timer = setInterval(() => { if (running) tick(); }, parseInt(intervalInput.value, 10)); });
+        minMagInput.addEventListener('input', () => { minMagVal.textContent = Number(minMagInput.value).toFixed(2); tick(); });
+    </script>
+</body>
+
+</html>

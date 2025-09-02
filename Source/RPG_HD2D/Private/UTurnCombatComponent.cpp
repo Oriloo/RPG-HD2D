@@ -154,6 +154,9 @@ void UUTurnCombatComponent::excuteAction(AActor* attackingActor, AActor* attacke
 	if (!attackingActor || !attackedActor || !attack)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Invalid parameters for excuteAction"));
+		if (!attackingActor) UE_LOG(LogTemp, Error, TEXT("attackingActor is null"));
+		if (!attackedActor) UE_LOG(LogTemp, Error, TEXT("attackedActor is null"));
+		if (!attack) UE_LOG(LogTemp, Error, TEXT("attack is null"));
 		return;
 	}
 
@@ -191,6 +194,7 @@ void UUTurnCombatComponent::excuteAction(AActor* attackingActor, AActor* attacke
 	if (attackingStats->ActionPoints < attackCost)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("%s does not have enough Action Points to execute %s"), *attackingActor->GetName(), *attack->AttackName);
+		EndTurn();
 		return; // Not enough action points to execute the attack
 	}
 

@@ -47,9 +47,56 @@ TSharedPtr<FJsonObject> UCombatJsonExporter::BuildPLayerLastActionsToJson(const 
 
 TSharedPtr<FJsonObject> UCombatJsonExporter::AIActiveEffectToJson(const ATurnGameState* GameState)
 {
-	if (!GameState || !GameState->AiActiveEffect) return MakeShareable(new FJsonObject);
+	if (!GameState) 
+	{
+		UE_LOG(LogTemp, Error, TEXT("AIActiveEffectToJson: GameState is null"));
+		return MakeShareable(new FJsonObject);
+	}
 
 	UStatusEffectComponent* AIEffects = GameState->AiActiveEffect;
+	
+	// Si AiActiveEffect n'est pas assigné, le chercher directement
+	if (!AIEffects)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("AiActiveEffect is null, searching for AI StatusEffectComponent..."));
+		
+		// Chercher l'IA dans TurnOrder (celui qui n'est pas le joueur)
+		for (AActor* Actor : GameState->TurnOrder)
+		{
+			if (Actor && (Actor->GetName().Equals(TEXT("BP_Main_Character")) || Actor->GetName().Contains(TEXT("Main_Character")) || Actor->GetName().Contains(TEXT("Player"))))
+			
+			{
+				AIEffects = Actor->FindComponentByClass<UStatusEffectComponent>();
+				if (AIEffects)
+				{
+					UE_LOG(LogTemp, Log, TEXT("Found AIStatusEffectComponent for JSON export"));
+					break;
+				}
+			}
+		}
+	}
+	
+	// Si on n'a toujours rien trouvé, retourner un objet vide
+	if (!AIEffects)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No AIStatusEffectComponent found, returning empty effects"));
+		TSharedPtr<FJsonObject> ResultJson = MakeShareable(new FJsonObject);
+		TArray<TSharedPtr<FJsonValue>> EmptyEffectsArray;
+		
+		// Créer 2 effets vides pour maintenir la structure
+		for (int i = 0; i < 2; ++i)
+		{
+			TSharedPtr<FJsonObject> EmptyEffectJson = MakeShareable(new FJsonObject);
+			EmptyEffectJson->SetNumberField(TEXT("code"), 0);
+			EmptyEffectJson->SetNumberField(TEXT("multiplier"), 0);
+			EmptyEffectJson->SetNumberField(TEXT("duration"), 0);
+			EmptyEffectsArray.Add(MakeShareable(new FJsonValueObject(EmptyEffectJson)));
+		}
+		
+		ResultJson->SetArrayField(TEXT("ai_active_effects"), EmptyEffectsArray);
+		return ResultJson;
+	}
+
 	TArray<TSharedPtr<FJsonValue>> EffectsArray;
 
 	FStatusEffect Buff = AIEffects->GetBuff();
@@ -58,9 +105,9 @@ TSharedPtr<FJsonObject> UCombatJsonExporter::AIActiveEffectToJson(const ATurnGam
 	auto AddEffect = [&](const FStatusEffect& Eff)
 		{
 			TSharedPtr<FJsonObject> Json = MakeShareable(new FJsonObject);
-			Json->SetNumberField(TEXT("code"), static_cast<int32>(Eff.Code));
-			Json->SetNumberField(TEXT("multiplier"), Eff.Power);
-			Json->SetNumberField(TEXT("duration"), Eff.RemainingTurns);
+			Json->SetNumberField(TEXT("code"), static_cast<int32>(Eff.Code) ? static_cast<int32>(Eff.Code) : 0);
+			Json->SetNumberField(TEXT("multiplier"), Eff.Power ? Eff.Power : 0 );
+			Json->SetNumberField(TEXT("duration"), Eff.RemainingTurns ? Eff.RemainingTurns : 0);
 			EffectsArray.Add(MakeShareable(new FJsonValueObject(Json)));
 		};
 
@@ -75,9 +122,55 @@ TSharedPtr<FJsonObject> UCombatJsonExporter::AIActiveEffectToJson(const ATurnGam
 
 TSharedPtr<FJsonObject> UCombatJsonExporter::PlayerActiveEffectToJson(const ATurnGameState* GameState)
 {
-	if (!GameState || !GameState->PlayerActiveEffect) return MakeShareable(new FJsonObject);
+	if (!GameState) 
+	{ 
+		UE_LOG(LogTemp, Error, TEXT("PlayerActiveEffectToJson: GameState is null"));
+		return MakeShareable(new FJsonObject);
+	}
 
 	UStatusEffectComponent* PlayerEffects = GameState->PlayerActiveEffect;
+	
+	// Si PlayerActiveEffect n'est pas assigné, le chercher directement
+	if (!PlayerEffects)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("PlayerActiveEffect is null, searching for player StatusEffectComponent..."));
+		
+		// Chercher le joueur dans TurnOrder
+		for (AActor* Actor : GameState->TurnOrder)
+		{
+			if (Actor && (Actor->GetName().Equals(TEXT("BP_Main_Character")) || Actor->GetName().Contains(TEXT("Main_Character")) || Actor->GetName().Contains(TEXT("Player"))))
+			{
+				PlayerEffects = Actor->FindComponentByClass<UStatusEffectComponent>();
+				if (PlayerEffects)
+				{
+					UE_LOG(LogTemp, Log, TEXT("Found PlayerStatusEffectComponent for JSON export"));
+					break;
+				}
+			}
+		}
+	}
+	
+	// Si on n'a toujours rien trouvé, retourner un objet vide
+	if (!PlayerEffects)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No PlayerStatusEffectComponent found, returning empty effects"));
+		TSharedPtr<FJsonObject> ResultJson = MakeShareable(new FJsonObject);
+		TArray<TSharedPtr<FJsonValue>> EmptyEffectsArray;
+		
+		// Créer 2 effets vides pour maintenir la structure
+		for (int i = 0; i < 2; ++i)
+		{
+			TSharedPtr<FJsonObject> EmptyEffectJson = MakeShareable(new FJsonObject);
+			EmptyEffectJson->SetNumberField(TEXT("code"), 0);
+			EmptyEffectJson->SetNumberField(TEXT("multiplier"), 0);
+			EmptyEffectJson->SetNumberField(TEXT("duration"), 0);
+			EmptyEffectsArray.Add(MakeShareable(new FJsonValueObject(EmptyEffectJson)));
+		}
+		
+		ResultJson->SetArrayField(TEXT("ply_active_effects"), EmptyEffectsArray);
+		return ResultJson;
+	}
+
 	TArray<TSharedPtr<FJsonValue>> EffectsArray;
 
 	FStatusEffect Buff = PlayerEffects->GetBuff();
@@ -111,7 +204,7 @@ TSharedPtr<FJsonObject> UCombatJsonExporter::CombatantStatsToJson(const ATurnGam
 
 	for (AActor* Actor : TurnOrder)
 	{
-		if (Actor->GetName() == TEXT("BP_Main_Character"))
+		if ((Actor && (Actor->GetName().Equals(TEXT("BP_Main_Character")) || Actor->GetName().Contains(TEXT("Main_Character")) || Actor->GetName().Contains(TEXT("Player")))))
 			PlayerStatsComp = Cast<UUStatsComponent>(Actor->GetComponentByClass(UUStatsComponent::StaticClass()));
 		else
 			AiStatsComp = Cast<UUStatsComponent>(Actor->GetComponentByClass(UUStatsComponent::StaticClass()));
@@ -122,7 +215,7 @@ TSharedPtr<FJsonObject> UCombatJsonExporter::CombatantStatsToJson(const ATurnGam
 	TSharedPtr<FJsonObject> AiStatsJson = MakeShareable(new FJsonObject);
 	if (AiStatsComp)
 	{
-		AiStatsJson->SetNumberField(TEXT("level"), 0);
+		AiStatsJson->SetNumberField(TEXT("level"), 1);
 		AiStatsJson->SetNumberField(TEXT("hpMax"), AiStatsComp->MaxHealthPoints);
 		AiStatsJson->SetNumberField(TEXT("hp"), AiStatsComp->HealthPoints);
 		AiStatsJson->SetNumberField(TEXT("speed"), AiStatsComp->Speed);
@@ -140,7 +233,7 @@ TSharedPtr<FJsonObject> UCombatJsonExporter::CombatantStatsToJson(const ATurnGam
 	}
 	else
 	{
-		AiStatsJson->SetNumberField(TEXT("level"), 0);
+		AiStatsJson->SetNumberField(TEXT("level"), 1);
 		AiStatsJson->SetNumberField(TEXT("hpMax"), 0);
 		AiStatsJson->SetNumberField(TEXT("hp"), 0);
 		AiStatsJson->SetNumberField(TEXT("speed"), 0);
@@ -161,13 +254,13 @@ TSharedPtr<FJsonObject> UCombatJsonExporter::CombatantStatsToJson(const ATurnGam
 	TSharedPtr<FJsonObject> PlayerStatsJson = MakeShareable(new FJsonObject);
 	if (PlayerStatsComp)
 	{
-		PlayerStatsJson->SetNumberField(TEXT("level"), 0);
+		PlayerStatsJson->SetNumberField(TEXT("level"), 1);
 		PlayerStatsJson->SetNumberField(TEXT("hpMax"), PlayerStatsComp->MaxHealthPoints);
 		PlayerStatsJson->SetNumberField(TEXT("hp"), PlayerStatsComp->HealthPoints);
 	}
 	else
 	{
-		PlayerStatsJson->SetNumberField(TEXT("level"), 0);
+		PlayerStatsJson->SetNumberField(TEXT("level"), 1);
 		PlayerStatsJson->SetNumberField(TEXT("hpMax"), 0);
 		PlayerStatsJson->SetNumberField(TEXT("hp"), 0);
 	}
@@ -203,7 +296,11 @@ TSharedPtr<FJsonObject> UCombatJsonExporter::BuildDisponibleActionToJson(const A
 
 	for (AActor* Actor : GameState->TurnOrder)
 	{
-		if (Actor->GetName() != TEXT("BP_Main_Character"))
+		FString ActorName = Actor->GetName();
+		if (ActorName.Equals(TEXT("BP_Main_Character")) ||
+			ActorName.Contains(TEXT("Main_Character")) ||
+			ActorName.Contains(TEXT("Player")) ||
+			ActorName.Contains(TEXT("BP_Main")))
 		{
 			TArray<UUAttackDataComponent*> AvailableActions;
 			Actor->GetComponents<UUAttackDataComponent>(AvailableActions);
