@@ -54,7 +54,7 @@ class state_encoder():
         normalized_data = normalizer(data_dict)
 
         def extract_effect_values(effect):
-            return [effect["code"], effect["multiplier"], effect["duration"] + 1]
+            return [effect["code"], effect["multiplier"], effect["duration"]]
 
         def extract_action_values(action):
             values = [action["cost"]]
