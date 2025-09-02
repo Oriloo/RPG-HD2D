@@ -1,0 +1,202 @@
+﻿{
+	"ply_recent_actions": [
+		{
+			"cost": 0,
+			"effects": [
+				{
+					"code": 0,
+					"multiplier": 0,
+					"duration": 0
+				},
+				{
+					"code": 0,
+					"multiplier": 0,
+					"duration": 0
+				}
+			]
+		},
+		{
+			"cost": 0,
+			"effects": [
+				{
+					"code": 0,
+					"multiplier": 0,
+					"duration": 0
+				},
+				{
+					"code": 0,
+					"multiplier": 0,
+					"duration": 0
+				}
+			]
+		},
+		{
+			"cost": 0,
+			"effects": [
+				{
+					"code": 0,
+					"multiplier": 0,
+					"duration": 0
+				},
+				{
+					"code": 0,
+					"multiplier": 0,
+					"duration": 0
+				}
+			]
+		}
+	],
+	"actives":
+	{
+		"ai_active_effects": [
+			{
+				"code": 0,
+				"multiplier": 0,
+				"duration": 0
+			},
+			{
+				"code": 0,
+				"multiplier": 0,
+				"duration": 0
+			}
+		],
+		"ply_active_effects": [
+			{
+				"code": 6,
+				"multiplier": 10,
+				"duration": 2
+			},
+			{
+				"code": 0,
+				"multiplier": 0,
+				"duration": 0
+			}
+		]
+	},
+	"combat_stats":
+	{
+		"ai_stats":
+		{
+			"level": 1,
+			"hpMax": 30,
+			"hp": 0,
+			"speed": 15,
+			"apMax": 2,
+			"ap": 4,
+			"stats":
+			{
+				"phy_atk": 10,
+				"phy_def": 10,
+				"spi_atk": 10,
+				"spi_def": 10,
+				"ele_atk": 10,
+				"ele_def": 10
+			}
+		},
+		"ply_stats":
+		{
+			"level": 1,
+			"hpMax": 50,
+			"hp": 30
+		}
+	},
+	"combat_state":
+	{
+		"round_count": 1,
+		"action_left": 1
+	},
+	"ai_available_actions": [
+		{
+			"cost": 0,
+			"effects": [
+				{
+					"code": 2,
+					"multiplier": 10,
+					"duration": 0
+				},
+				{
+					"code": 0,
+					"multiplier": 0,
+					"duration": 0
+				}
+			]
+		},
+		{
+			"cost": 0,
+			"effects": [
+				{
+					"code": 1,
+					"multiplier": 10,
+					"duration": 0
+				},
+				{
+					"code": 0,
+					"multiplier": 0,
+					"duration": 0
+				}
+			]
+		},
+		{
+			"cost": 0,
+			"effects": [
+				{
+					"code": 3,
+					"multiplier": 10,
+					"duration": 0
+				},
+				{
+					"code": 0,
+					"multiplier": 0,
+					"duration": 0
+				}
+			]
+		},
+		{
+			"cost": 0,
+			"effects": [
+				{
+					"code": 2,
+					"multiplier": 10,
+					"duration": 0
+				},
+				{
+					"code": 6,
+					"multiplier": 10,
+					"duration": 2
+				}
+			]
+		}
+	],
+	"ai_actions_history": [
+		{
+			"cost": 0,
+			"effects": [
+				{
+					"code": 2,
+					"multiplier": 10,
+					"duration": 0
+				},
+				{
+					"code": 0,
+					"multiplier": 0,
+					"duration": 0
+				}
+			]
+		},
+		{
+			"cost": 0,
+			"effects": [
+				{
+					"code": 2,
+					"multiplier": 10,
+					"duration": 0
+				},
+				{
+					"code": 6,
+					"multiplier": 10,
+					"duration": 2
+				}
+			]
+		}
+	]
+}
