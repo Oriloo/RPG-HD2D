@@ -30,11 +30,11 @@ void UUTurnCombatComponent::BeginPlay()
 
 	if (OwningCharacter)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Composant attaché à : %s"), *OwningCharacter->GetName());
+		UE_LOG(LogTemp, Warning, TEXT("Composant attachï¿½ ï¿½ : %s"), *OwningCharacter->GetName());
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("Le propriétaire n'est pas un APaperCharacter !"));
+		UE_LOG(LogTemp, Error, TEXT("Le propriï¿½taire n'est pas un APaperCharacter !"));
 	}
 
 	TurnGameMode = Cast<ATurnGameMode>(GetWorld()->GetAuthGameMode());
@@ -67,7 +67,7 @@ void UUTurnCombatComponent::StartTurn()
 {
 	bIsMyTurn = true;
 	OwningCharacter = GetOwner();
-	//UE_LOG(LogTemp, Warning, TEXT("Début du tour pour l'acteur : %s"), *OwningCharacter->GetName());
+	//UE_LOG(LogTemp, Warning, TEXT("Dï¿½but du tour pour l'acteur : %s"), *OwningCharacter->GetName());
 	if (OwningCharacter)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("C'est mon tour ! Actor: %s"), *OwningCharacter->GetName());
@@ -108,7 +108,7 @@ void UUTurnCombatComponent::EndTurn()
 	if (OwningCharacter)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("C'est la fin de mon tour ! Actor: %s"), *OwningCharacter->GetName());
-		//ajoute 1 point d'action à l'acteur
+		//ajoute 1 point d'action ï¿½ l'acteur
 		UUStatsComponent* StatsComp = OwningCharacter->FindComponentByClass<UUStatsComponent>();
 		if (StatsComp)
 		{
@@ -116,7 +116,7 @@ void UUTurnCombatComponent::EndTurn()
 
 			if (StatsComp->ActionPoints > StatsComp->MaxActionPoints)
 			{
-				StatsComp->ActionPoints = StatsComp->MaxActionPoints; // Ne pas dépasser le maximum
+				StatsComp->ActionPoints = StatsComp->MaxActionPoints; // Ne pas dï¿½passer le maximum
 			}
 			UE_LOG(LogTemp, Warning, TEXT("Action Points of %s reset to %d"), *OwningCharacter->GetName(), StatsComp->ActionPoints);
 		}
@@ -376,6 +376,26 @@ void UUTurnCombatComponent::excuteAction(AActor* attackingActor, AActor* attacke
 }
 
 
+bool UUTurnCombatComponent::IsPlayerActor(AActor* actor)
+{
+	if (!actor)
+	{
+		return false;
+	}
+
+	FString ActorName = actor->GetName();
+
+	if (ActorName.Equals(TEXT("BP_Main_Character")) ||
+		ActorName.Contains(TEXT("Main_Character")) ||
+		ActorName.Contains(TEXT("Player")) ||
+		ActorName.Contains(TEXT("BP_Main")))
+	{
+		return true;
+	}
+
+	return false;
+}
+
 void UUTurnCombatComponent::addActionToHistory(AActor* actor, UUAttackDataComponent* attack)
 {
 	if (!actor || !attack)
@@ -390,7 +410,7 @@ void UUTurnCombatComponent::addActionToHistory(AActor* actor, UUAttackDataCompon
 		return;
 	}
 	// Check if the actor is a player or an enemy
-    bool isPlayer = actor->GetName().Equals(TEXT("BP_Main_Character"));
+	bool isPlayer = IsPlayerActor(actor);
 	if (isPlayer)
 	{
 		gameState->LastPLayerAction.Add(attack);
@@ -408,5 +428,4 @@ void UUTurnCombatComponent::addActionToHistory(AActor* actor, UUAttackDataCompon
 		}
 	}
 }
-
 

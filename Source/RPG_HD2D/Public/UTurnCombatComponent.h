@@ -53,5 +53,6 @@ public:
 private:
 
 	void addActionToHistory(AActor* actor, UUAttackDataComponent* attack);
+	bool IsPlayerActor(AActor* Actor);
 
 };

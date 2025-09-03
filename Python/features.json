@@ -4,8 +4,8 @@
 			"cost": 0,
 			"effects": [
 				{
-					"code": 0,
-					"multiplier": 0,
+					"code": 1,
+					"multiplier": 8,
 					"duration": 0
 				},
 				{
@@ -19,8 +19,8 @@
 			"cost": 0,
 			"effects": [
 				{
-					"code": 0,
-					"multiplier": 0,
+					"code": 1,
+					"multiplier": 8,
 					"duration": 0
 				},
 				{
@@ -34,8 +34,8 @@
 			"cost": 0,
 			"effects": [
 				{
-					"code": 0,
-					"multiplier": 0,
+					"code": 1,
+					"multiplier": 8,
 					"duration": 0
 				},
 				{
@@ -78,31 +78,31 @@
 		"ai_stats":
 		{
 			"level": 1,
-			"hpMax": 50,
-			"hp": 17,
-			"speed": 10,
-			"apMax": 2,
+			"hpMax": 260,
+			"hp": 0,
+			"speed": 7,
+			"apMax": 1,
 			"ap": 4,
 			"stats":
 			{
-				"phy_atk": 10,
-				"phy_def": 10,
-				"spi_atk": 10,
-				"spi_def": 10,
-				"ele_atk": 10,
-				"ele_def": 10
+				"phy_atk": 1,
+				"phy_def": 1,
+				"spi_atk": 9,
+				"spi_def": 18,
+				"ele_atk": 22,
+				"ele_def": 31
 			}
 		},
 		"ply_stats":
 		{
-			"level": 0,
-			"hpMax": 50,
-			"hp": 17
+			"level": 1,
+			"hpMax": 260,
+			"hp": 50
 		}
 	},
 	"combat_state":
 	{
-		"round_count": 1,
+		"round_count": 10,
 		"action_left": 3
 	},
 	"ai_available_actions": [
@@ -110,8 +110,8 @@
 			"cost": 0,
 			"effects": [
 				{
-					"code": 2,
-					"multiplier": 10,
+					"code": 1,
+					"multiplier": 8,
 					"duration": 0
 				},
 				{
@@ -122,11 +122,11 @@
 			]
 		},
 		{
-			"cost": 0,
+			"cost": 1,
 			"effects": [
 				{
 					"code": 1,
-					"multiplier": 10,
+					"multiplier": 15,
 					"duration": 0
 				},
 				{
@@ -137,11 +137,11 @@
 			]
 		},
 		{
-			"cost": 0,
+			"cost": 2,
 			"effects": [
 				{
-					"code": 3,
-					"multiplier": 10,
+					"code": 1,
+					"multiplier": 35,
 					"duration": 0
 				},
 				{
@@ -152,16 +152,16 @@
 			]
 		},
 		{
-			"cost": 0,
+			"cost": 3,
 			"effects": [
 				{
-					"code": 2,
-					"multiplier": 10,
+					"code": 1,
+					"multiplier": 20,
 					"duration": 0
 				},
 				{
 					"code": 6,
-					"multiplier": 10,
+					"multiplier": 20,
 					"duration": 2
 				}
 			]
@@ -169,11 +169,11 @@
 	],
 	"ai_actions_history": [
 		{
-			"cost": 0,
+			"cost": 1,
 			"effects": [
 				{
-					"code": 2,
-					"multiplier": 10,
+					"code": 1,
+					"multiplier": 20,
 					"duration": 0
 				},
 				{
@@ -184,11 +184,11 @@
 			]
 		},
 		{
-			"cost": 0,
+			"cost": 1,
 			"effects": [
 				{
-					"code": 2,
-					"multiplier": 10,
+					"code": 1,
+					"multiplier": 20,
 					"duration": 0
 				},
 				{
