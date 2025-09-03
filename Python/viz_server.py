@@ -297,6 +297,47 @@ def flatten_features_from_normalized(n: dict) -> List[float]:
     return values_list
 
 
+def flatten_features_from_raw(raw: dict) -> List[float]:
+    values_list: List[float] = []
+
+    for action in raw["enemy_recent_actions"]:
+        values_list.extend(extract_action_values(action))
+
+    for actif in raw["actifs"]["ai_actifs"]:
+        values_list.extend(extract_effect_values(actif))
+
+    for actif in raw["actifs"]["enemy_actifs"]:
+        values_list.extend(extract_effect_values(actif))
+
+    ai_stats = raw["combat_stats"]["ai_stats"]
+    values_list.extend([
+        ai_stats["level"], ai_stats["hpMax"], ai_stats["hp"],
+        ai_stats["speed"], ai_stats["apMax"], ai_stats["ap"],
+    ])
+
+    ai_detailed_stats = ai_stats["stats"]
+    values_list.extend([
+        ai_detailed_stats["phy_atk"], ai_detailed_stats["phy_def"],
+        ai_detailed_stats["spi_atk"], ai_detailed_stats["spi_def"],
+        ai_detailed_stats["ele_atk"], ai_detailed_stats["ele_def"],
+    ])
+
+    enemy_stats = raw["combat_stats"]["enemy_stats"]
+    values_list.extend([enemy_stats["level"], enemy_stats["hpMax"], enemy_stats["hp"]])
+
+    combat_states = raw["combat_states"]
+    values_list.extend([combat_states["round_count"], combat_states["action_left"]])
+
+    for action in raw["ai_available_actions"]:
+        values_list.extend(extract_action_values(action))
+
+    for action in raw["ai_actions_history"]:
+        values_list.extend(extract_action_values(action))
+
+    assert len(values_list) == 92, f"Expected 92 features, got {len(values_list)}"
+    return values_list
+
+
 # ------------------------- Server & Endpoints -------------------------------
 app = Flask(__name__, static_folder=None)
 
@@ -367,10 +408,12 @@ def api_features():
     n = normalizer(raw)
     names = feature_names_from_normalized(n)
     vals = flatten_features_from_normalized(n)
+    raws = flatten_features_from_raw(raw)
     return jsonify({
         "feature_names": names,
         "features_normalized": vals,
-        "raw": raw_user,
+        "features_raw": raws,
+        "raw_obj": raw_user,
     })
 
 
@@ -388,6 +431,7 @@ def api_forward():
     raw = adapt_payload_to_encoder_schema(raw_user)
     n = normalizer(raw)
     x_list = flatten_features_from_normalized(n)
+    raw_list = flatten_features_from_raw(raw)
     x = torch.tensor([x_list], dtype=torch.float32)
 
     model = get_model(base)
@@ -401,6 +445,7 @@ def api_forward():
     return jsonify({
         "feature_names": names,
         "features_normalized": x_list,
+        "features_raw": raw_list,
         "h1": h1[0].tolist(),
         "h2": h2[0].tolist(),
         "logits": logits.tolist(),

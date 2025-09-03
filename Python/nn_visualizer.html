@@ -43,20 +43,7 @@
         }
 
         main {
-            display: flex;
             height: calc(100vh - 52px);
-        }
-
-        #left {
-            width: 320px;
-            border-right: 1px solid #1e293b;
-            overflow: auto;
-            padding: 10px;
-        }
-
-        #right {
-            flex: 1;
-            position: relative;
         }
 
         #canvas {
@@ -125,6 +112,8 @@
         <span class="sep">|</span>
         <span class="small">Polling features.json + model forward in real time</span>
         <span class="sep">|</span>
+        <span class="small">Architecture: <span id="arch" class="pill">—</span></span>
+        <span class="sep">|</span>
         <label class="small">Refresh(ms) <input id="interval" type="number" value="750"
                 style="width:70px; background:#0b0f14; color:#e6eef7; border:1px solid #334155; padding:2px 6px; border-radius:4px;" /></label>
         <button id="toggle"
@@ -138,27 +127,12 @@
         <span id="status" class="small" style="margin-left:auto">—</span>
     </header>
     <main>
-        <section id="left">
-            <div class="row small">Architecture: <span id="arch" class="pill">—</span></div>
-            <details open>
-                <summary>Inputs (normalized) — names</summary>
-                <ul id="inputs"></ul>
-            </details>
-            <details open>
-                <summary>Outputs (softmax)</summary>
-                <ul id="outputs"></ul>
-            </details>
-        </section>
-        <section id="right">
-            <canvas id="canvas"></canvas>
-        </section>
+        <canvas id="canvas"></canvas>
     </main>
 
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        const inputsUl = document.getElementById('inputs');
-        const outputsUl = document.getElementById('outputs');
         const archSpan = document.getElementById('arch');
         const statusSpan = document.getElementById('status');
         const intervalInput = document.getElementById('interval');
@@ -177,7 +151,8 @@
         }
         new ResizeObserver(setCanvasSize).observe(canvas);
 
-        const LAYOUT = { left: 60, right: 60, top: 40, bottom: 40, vGap: 10 };
+        // Wider left margin to fit names + normalized + raw values
+        const LAYOUT = { left: 360, right: 100, top: 40, bottom: 40, vGap: 10 };
 
         function lerp(a, b, t) { return a + (b - a) * t }
         function clamp01(x) { return Math.max(0, Math.min(1, x)) }
@@ -266,12 +241,15 @@
             ctx.font = '12px system-ui, Segoe UI, Arial';
             ctx.textAlign = 'center';
             const names = layerData.inputNames || [];
+            const raws = layerData.inputRaw || [];
             const first = positions[0];
             for (let i = 0; i < first.length && i < names.length; i++) {
                 const n = first[i];
                 const val = (layerData[0] && typeof layerData[0][i] === 'number') ? layerData[0][i] : 0;
                 ctx.textAlign = 'right';
-                ctx.fillText(`${names[i]}  (${val.toFixed(3)})`, n.x - 10, n.y + 4);
+                const rawVal = (typeof raws[i] === 'number') ? raws[i] : 0;
+                const rawInt = Math.round(rawVal);
+                ctx.fillText(`${names[i]}  (n=${val.toFixed(3)}  r=${rawInt})`, n.x - 12, n.y + 4);
             }
 
             ctx.textAlign = 'left';
@@ -282,11 +260,6 @@
                 const v = (typeof out[i] === 'number') ? out[i] : 0;
                 ctx.fillText(`P${i + 1}: ${v.toFixed(6)}`, n.x + 10, n.y + 4);
             }
-        }
-
-        function valueBarHTML(v) {
-            const pct = clamp01(v) * 100;
-            return `<div class="valueBar"><div style="width:${pct}%;"></div></div>`;
         }
 
         async function fetchJSON(path) {
@@ -300,27 +273,6 @@
             catch (e) { archSpan.textContent = arch.join(' ⟶ ') + ' (offline)'; }
         }
 
-        function renderInputs(names, values) {
-            inputsUl.innerHTML = '';
-            for (let i = 0; i < names.length; i++) {
-                const li = document.createElement('li');
-                const v = values[i] ?? 0;
-                li.innerHTML = `<span class="small">${i + 1}.</span> ${names[i]} — <code style="color:#cbd5e1">${Number(v).toFixed(3)}</code> ${valueBarHTML(v)}`;
-                inputsUl.appendChild(li);
-            }
-        }
-
-        function renderOutputs(probs) {
-            outputsUl.innerHTML = '';
-            probs = probs || [];
-            for (let i = 0; i < Math.max(5, probs.length); i++) {
-                const li = document.createElement('li');
-                const v = probs[i] ?? 0;
-                li.innerHTML = `<strong>P${i + 1}</strong> — <code style="color:#cbd5e1">${Number(v).toFixed(6)}</code> ${valueBarHTML(v)}`;
-                outputsUl.appendChild(li);
-            }
-        }
-
         async function tick() {
             const t0 = performance.now();
             try {
@@ -328,14 +280,14 @@
                 const outs = await fetchJSON('/api/outputs').catch(() => ({}));
                 const names = fwd.feature_names || [];
                 const feats = fwd.features_normalized || [];
+                const raws = fwd.features_raw || [];
                 const probs = (outs && outs.P1 !== undefined) ? [outs.P1, outs.P2, outs.P3, outs.P4, outs.P5] : (fwd.probs || []);
-                renderInputs(names, feats);
-                renderOutputs(probs);
                 drawNetwork(arch, {
                     0: feats,
                     1: fwd.h1 || [],
                     2: fwd.h2 || [],
                     inputNames: names,
+                    inputRaw: raws,
                     outputs: probs,
                 });
                 const dt = performance.now() - t0;

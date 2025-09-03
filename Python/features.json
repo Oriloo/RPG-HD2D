@@ -95,15 +95,15 @@
 		},
 		"ply_stats":
 		{
-			"level": 1,
+			"level": 0,
 			"hpMax": 50,
-			"hp": 8
+			"hp": 17
 		}
 	},
 	"combat_state":
 	{
 		"round_count": 1,
-		"action_left": 1
+		"action_left": 3
 	},
 	"ai_available_actions": [
 		{
