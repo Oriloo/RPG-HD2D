@@ -77,9 +77,9 @@
 	{
 		"ai_stats":
 		{
-			"level": 0,
+			"level": 1,
 			"hpMax": 50,
-			"hp": 50,
+			"hp": 17,
 			"speed": 10,
 			"apMax": 2,
 			"ap": 4,
