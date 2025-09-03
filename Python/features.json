@@ -78,9 +78,9 @@
 		"ai_stats":
 		{
 			"level": 1,
-			"hpMax": 30,
-			"hp": 30,
-			"speed": 15,
+			"hpMax": 50,
+			"hp": 17,
+			"speed": 10,
 			"apMax": 2,
 			"ap": 4,
 			"stats":
@@ -96,23 +96,22 @@
 		"ply_stats":
 		{
 			"level": 1,
-			"hpMax": 0,
-			"hp": 0
+			"hpMax": 50,
+			"hp": 8
 		}
 	},
 	"combat_state":
 	{
 		"round_count": 1,
-		"action_left": 3
+		"action_left": 1
 	},
-	"ai_available_actions": [],
-	"ai_actions_history": [
+	"ai_available_actions": [
 		{
 			"cost": 0,
 			"effects": [
 				{
-					"code": 0,
-					"multiplier": 0,
+					"code": 2,
+					"multiplier": 10,
 					"duration": 0
 				},
 				{
@@ -126,8 +125,70 @@
 			"cost": 0,
 			"effects": [
 				{
+					"code": 1,
+					"multiplier": 10,
+					"duration": 0
+				},
+				{
 					"code": 0,
 					"multiplier": 0,
+					"duration": 0
+				}
+			]
+		},
+		{
+			"cost": 0,
+			"effects": [
+				{
+					"code": 3,
+					"multiplier": 10,
+					"duration": 0
+				},
+				{
+					"code": 0,
+					"multiplier": 0,
+					"duration": 0
+				}
+			]
+		},
+		{
+			"cost": 0,
+			"effects": [
+				{
+					"code": 2,
+					"multiplier": 10,
+					"duration": 0
+				},
+				{
+					"code": 6,
+					"multiplier": 10,
+					"duration": 2
+				}
+			]
+		}
+	],
+	"ai_actions_history": [
+		{
+			"cost": 0,
+			"effects": [
+				{
+					"code": 2,
+					"multiplier": 10,
+					"duration": 0
+				},
+				{
+					"code": 0,
+					"multiplier": 0,
+					"duration": 0
+				}
+			]
+		},
+		{
+			"cost": 0,
+			"effects": [
+				{
+					"code": 2,
+					"multiplier": 10,
 					"duration": 0
 				},
 				{
